@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const userId = message.from?.id;
     const firstName = message.from?.first_name || "ወንድማችን/እኅታችን";
     const text = (message.text || "").trim();
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+    const appUrl = (process.env.APP_URL || "").replace(/\/$/, "");
     const admin = userId ? isTelegramAdmin(userId) : false;
 
     if (text.startsWith("/start")) {

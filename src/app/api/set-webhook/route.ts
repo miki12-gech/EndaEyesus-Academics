@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+    const appUrl = (process.env.APP_URL || "").replace(/\/$/, "");
     const secret = process.env.WEBHOOK_SECRET;
 
     if (!token || !appUrl) {
@@ -14,7 +14,7 @@ export async function GET() {
         {
           ok: false,
           error:
-            "Missing TELEGRAM_BOT_TOKEN or NEXT_PUBLIC_APP_URL in environment variables.",
+            "Missing TELEGRAM_BOT_TOKEN or APP_URL in environment variables.",
         },
         { status: 400 }
       );
