@@ -39,29 +39,11 @@ export async function GET() {
     );
     const webhookData = await webhookRes.json();
 
-    // 3. Configure the persistent Telegram Menu Button to launch the Mini App
-    const menuRes = await fetch(
-      `https://api.telegram.org/bot${token}/setChatMenuButton`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          menu_button: {
-            type: "web_app",
-            text: "📋 አካዳሚክ ፖርታል",
-            web_app: { url: appUrl },
-          },
-        }),
-      }
-    );
-    const menuData = await menuRes.json();
-
     return NextResponse.json({
       ok: true,
       databaseInitialized: true,
       webhookUrl,
       telegramWebhook: webhookData,
-      telegramMenuButton: menuData,
     });
   } catch (error) {
     console.error("Setup error:", error);
