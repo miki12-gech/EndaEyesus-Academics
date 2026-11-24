@@ -78,7 +78,18 @@ export function verifyAdminAccess(request: Request): {
   authorized: boolean;
   adminLabel?: string;
 } {
-  const initData = request.headers.get("x-telegram-init-data") || "";
+  let queryInitData = "";
+  let queryPin = "";
+  try {
+    const url = new URL(request.url);
+    queryInitData = url.searchParams.get("initData") || "";
+    queryPin = url.searchParams.get("pin") || "";
+  } catch {
+    // Ignore malformed URL
+  }
+
+  const initData =
+    request.headers.get("x-telegram-init-data") || queryInitData;
   if (initData) {
     const tgUser = verifyTelegramInitData(initData);
     if (tgUser && isTelegramAdmin(tgUser.id)) {
@@ -91,7 +102,7 @@ export function verifyAdminAccess(request: Request): {
     }
   }
 
-  const providedPin = request.headers.get("x-admin-pin") || "";
+  const providedPin = request.headers.get("x-admin-pin") || queryPin;
   const configuredPin = process.env.ADMIN_DASHBOARD_PIN || "";
   if (configuredPin && providedPin && providedPin === configuredPin) {
     return { authorized: true, adminLabel: "Admin PIN" };

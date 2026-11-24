@@ -15,15 +15,8 @@ function csvEscape(val: unknown): string {
 
 export async function GET(req: NextRequest) {
   try {
-    // Support either header auth or URL query param ?pin=... for direct browser/Telegram downloads
-    const url = new URL(req.url);
-    const queryPin = url.searchParams.get("pin");
-    const configuredPin = process.env.ADMIN_DASHBOARD_PIN || "";
-
     const auth = verifyAdminAccess(req);
-    const authorized = auth.authorized || (Boolean(configuredPin) && queryPin === configuredPin);
-
-    if (!authorized) {
+    if (!auth.authorized) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

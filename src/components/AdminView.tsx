@@ -126,19 +126,39 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
     onlyTutors,
   ]);
 
+  const buildAuthQuery = () => {
+    if (initData) return `?initData=${encodeURIComponent(initData)}`;
+    if (adminPin) return `?pin=${encodeURIComponent(adminPin)}`;
+    return "";
+  };
+
   const handleExportCsv = async () => {
     setExporting(true);
     try {
+      const tg = (
+        window as unknown as {
+          Telegram?: {
+            WebApp?: {
+              openLink?: (url: string) => void;
+            };
+          };
+        }
+      ).Telegram?.WebApp;
+
+      const exportUrl = `${window.location.origin}/api/admin/export${buildAuthQuery()}`;
+
+      // Inside Telegram WebApp, open external browser so file download works reliably
+      if (tg?.openLink && initData) {
+        tg.openLink(exportUrl);
+        return;
+      }
+
       const res = await fetch("/api/admin/export", { headers: authHeaders });
       if (!res.ok) throw new Error("CSV ማውረድ አልተቻለም።");
       const csvText = await res.text();
-      
+
       const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
       const filename = `enda-eyesus-academic-${new Date().toISOString().slice(0, 10)}.csv`;
-      
-      // If running inside Telegram WebApp, open direct link or data URI
-      const tg = (window as unknown as { Telegram?: { WebApp?: { openLink?: (url: string) => void; downloadFile?: (params: { url: string; file_name: string }) => void } } }).Telegram?.WebApp;
-      
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -149,12 +169,6 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
         a.remove();
         window.URL.revokeObjectURL(url);
       }, 500);
-
-      // If Telegram WebApp has openLink, also trigger direct download link fallback
-      if (tg?.openLink) {
-        const pinParam = adminPin ? `?pin=${encodeURIComponent(adminPin)}` : "";
-        tg.openLink(`${window.location.origin}/api/admin/export${pinParam}`);
-      }
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -163,7 +177,22 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
   };
 
   const handlePrint = () => {
-    window.print();
+    const reportUrl = `${window.location.origin}/api/admin/report${buildAuthQuery()}`;
+    const tg = (
+      window as unknown as {
+        Telegram?: {
+          WebApp?: {
+            openLink?: (url: string) => void;
+          };
+        };
+      }
+    ).Telegram?.WebApp;
+
+    if (tg?.openLink && initData) {
+      tg.openLink(reportUrl);
+    } else {
+      window.open(reportUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   return (
