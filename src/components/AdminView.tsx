@@ -14,6 +14,10 @@ import {
   ChevronUp,
   Printer,
   FileSpreadsheet,
+  KeyRound,
+  Copy,
+  Check,
+  Trash2,
 } from "lucide-react";
 import {
   ACADEMIC_YEARS,
@@ -60,6 +64,13 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
   const [showDeptBreakdown, setShowDeptBreakdown] = useState(true);
   const [leaderMode, setLeaderMode] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [activeLeaderLink, setActiveLeaderLink] = useState<{
+    dept: string;
+    label: string;
+    url: string;
+  } | null>(null);
+  const [leaderLinkLoading, setLeaderLinkLoading] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const deptSummary = useMemo(() => buildDepartmentStats(records), [records]);
 
@@ -209,6 +220,55 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
       tg.openLink(reportUrl);
     } else {
       window.open(reportUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const handleGenerateLeaderLink = async (
+    deptKey: string,
+    label: string,
+    regenerate = false
+  ) => {
+    setLeaderLinkLoading(true);
+    setCopiedLink(false);
+    try {
+      const res = await fetch("/api/admin/leaders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({ department: deptKey, regenerate }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "ሊንክ መፍጠር አልተቻለም።");
+      const url = `${window.location.origin}/leader?token=${data.access_token}`;
+      setActiveLeaderLink({ dept: deptKey, label, url });
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopiedLink(true);
+      } catch {
+        // Clipboard may be blocked in some WebViews; user can copy from input box
+      }
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setLeaderLinkLoading(false);
+    }
+  };
+
+  const handleRevokeLeaderLink = async (deptKey: string) => {
+    setLeaderLinkLoading(true);
+    try {
+      const res = await fetch(
+        `/api/admin/leaders?department=${encodeURIComponent(deptKey)}`,
+        { method: "DELETE", headers: authHeaders }
+      );
+      if (!res.ok) throw new Error("ሊንኩን ማጥፋት አልተቻለም።");
+      setActiveLeaderLink(null);
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setLeaderLinkLoading(false);
     }
   };
 
@@ -432,8 +492,85 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
                   <Download className="w-3 h-3" />
                   Excel
                 </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleGenerateLeaderLink("NO_DEPT", "ክፍል የሌላቸው")
+                  }
+                  disabled={leaderLinkLoading}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-[11px] font-bold transition disabled:opacity-40"
+                >
+                  <KeyRound className="w-3 h-3" />
+                  መዳረሻ ሊንክ
+                </button>
               </div>
             </div>
+
+            {activeLeaderLink && (
+              <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-emerald-950">
+                    🔑 የክፍል ተጠሪ ሚስጥራዊ ሊንክ — {activeLeaderLink.label}
+                  </span>
+                  <span className="text-[10px] text-emerald-800">
+                    (ስም፣ ስልክ፣ Telegram እና አገልግሎት ብቻ ያሳያል — ሚስጥራዊ CGPA አያሳይም)
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <input
+                    type="text"
+                    readOnly
+                    value={activeLeaderLink.url}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    className="flex-1 min-w-[200px] px-2.5 py-1.5 text-xs bg-white border border-emerald-300 rounded-lg text-slate-800 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(activeLeaderLink.url);
+                      setCopiedLink(true);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800"
+                  >
+                    {copiedLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        ተቀድቷል
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        ቅዳ (Copy)
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleGenerateLeaderLink(
+                        activeLeaderLink.dept,
+                        activeLeaderLink.label,
+                        true
+                      )
+                    }
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-900 text-xs font-bold hover:bg-emerald-100"
+                    title="አዲስ ሊንክ ቀይር (የቀድሞውን ያጠፋል)"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    ቀይር
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRevokeLeaderLink(activeLeaderLink.dept)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-bold hover:bg-red-100"
+                    title="መዳረሻውን ሰርዝ"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    ሰርዝ
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Per-Department Table */}
             <div className="overflow-x-auto">
@@ -526,6 +663,18 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
                             >
                               <Download className="w-3 h-3" />
                               CSV
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleGenerateLeaderLink(d.dept, d.label)
+                              }
+                              disabled={leaderLinkLoading}
+                              title={`${d.label} — ለክፍል ተጠሪ ሊንክ ስጥ`}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 text-[10px] font-bold transition disabled:opacity-40"
+                            >
+                              <KeyRound className="w-3 h-3" />
+                              ሊንክ
                             </button>
                           </div>
                         </td>

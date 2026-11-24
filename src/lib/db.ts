@@ -56,6 +56,16 @@ export async function ensureSchema(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_academic_profiles_red_flag
         ON academic_profiles (is_red_flag)
       `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS department_access (
+          id SERIAL PRIMARY KEY,
+          department TEXT UNIQUE NOT NULL,
+          access_token TEXT UNIQUE NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
     })().catch((err) => {
       schemaPromise = null;
       throw err;
