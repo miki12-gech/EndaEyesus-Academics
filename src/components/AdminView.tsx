@@ -61,7 +61,9 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
   const [deptFilter, setDeptFilter] = useState("ALL");
   const [onlyRedFlag, setOnlyRedFlag] = useState(false);
   const [onlyTutors, setOnlyTutors] = useState(false);
-  const [showDeptBreakdown, setShowDeptBreakdown] = useState(true);
+  const [adminSection, setAdminSection] = useState<
+    "students" | "departments" | "links"
+  >("students");
   const [leaderMode, setLeaderMode] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [activeLeaderLink, setActiveLeaderLink] = useState<{
@@ -338,6 +340,7 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
           onClick={() => {
             setOnlyRedFlag((v) => !v);
             setOnlyTutors(false);
+            setAdminSection("students");
           }}
           className={`text-left p-3.5 rounded-2xl border shadow-sm transition ${
             onlyRedFlag
@@ -361,6 +364,7 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
           onClick={() => {
             setOnlyTutors((v) => !v);
             setOnlyRedFlag(false);
+            setAdminSection("students");
           }}
           className={`text-left p-3.5 rounded-2xl border shadow-sm transition ${
             onlyTutors
@@ -381,30 +385,186 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
         </button>
       </div>
 
-      {/* Department Breakdown & Per-Department Print */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* Section Navigation (Clean 3-Tab Switcher) */}
+      <div className="grid grid-cols-3 gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
         <button
           type="button"
-          onClick={() => setShowDeptBreakdown((v) => !v)}
-          className="w-full px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-left"
+          onClick={() => setAdminSection("students")}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+            adminSection === "students"
+              ? "bg-gibi-navy text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
         >
-          <div>
-            <h3 className="font-bold text-xs sm:text-sm text-gibi-navy">
-              📊 የየክፍላቱ አገልጋዮች እና ክፍል የሌላቸው (Department Breakdown)
-            </h3>
-            <p className="text-[11px] text-slate-500">
-              ለእያንዳንዱ ክፍል ዋና/ንዑስ/አክቲቭ አገልጋዮችን ይዩ እና ለየክፍሉ ፕሪንት ያድርጉ
-            </p>
-          </div>
-          {showDeptBreakdown ? (
-            <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
-          )}
+          <Users className="w-4 h-4 shrink-0" />
+          <span>ተማሪዎች ({records.length})</span>
         </button>
 
-        {showDeptBreakdown && (
-          <div className="p-3.5 space-y-3">
+        <button
+          type="button"
+          onClick={() => setAdminSection("departments")}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+            adminSection === "departments"
+              ? "bg-gibi-navy text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <GraduationCap className="w-4 h-4 shrink-0" />
+          <span>ክፍላት</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAdminSection("links")}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+            adminSection === "links"
+              ? "bg-emerald-700 text-white shadow-sm"
+              : "text-emerald-800 bg-emerald-50 hover:bg-emerald-100"
+          }`}
+        >
+          <KeyRound className="w-4 h-4 shrink-0" />
+          <span>መዳረሻ ሊንክ</span>
+        </button>
+      </div>
+
+      {/* SECTION: Leader Access Links (Shown ONLY when 'መዳረሻ ሊንክ' is clicked) */}
+      {adminSection === "links" && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+          <div>
+            <h3 className="font-bold text-sm text-gibi-navy">
+              🔑 የክፍል ተጠሪዎች መዳረሻ ሊንክ (Leader Access Links)
+            </h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              ለእያንዳንዱ ክፍል ተጠሪ የራሱን የአባላት ዝርዝር (ስም፣ ስልክ፣ Telegram እና አገልግሎት ብቻ) የሚያይበት ሚስጥራዊ ሊንክ ይስጡ።
+            </p>
+          </div>
+
+          {activeLeaderLink && (
+            <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-3 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold text-emerald-950">
+                  🔑 የተመረጠው ሊንክ — {activeLeaderLink.label}
+                </span>
+                <span className="text-[10px] text-emerald-800">
+                  (ሚስጥራዊ CGPA እና Red Flag አያሳይም)
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <input
+                  type="text"
+                  readOnly
+                  value={activeLeaderLink.url}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                  className="flex-1 min-w-[200px] px-2.5 py-1.5 text-xs bg-white border border-emerald-300 rounded-lg text-slate-800 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(activeLeaderLink.url);
+                    setCopiedLink(true);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800"
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      ተቀድቷል
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      ቅዳ (Copy)
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleGenerateLeaderLink(
+                      activeLeaderLink.dept,
+                      activeLeaderLink.label,
+                      true
+                    )
+                  }
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-900 text-xs font-bold hover:bg-emerald-100"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  ቀይር
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRevokeLeaderLink(activeLeaderLink.dept)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-bold hover:bg-red-100"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  ሰርዝ
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {deptSummary.departments.map((d) => (
+              <div
+                key={d.dept}
+                className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50/70"
+              >
+                <div>
+                  <p className="text-xs font-bold text-gibi-navy">{d.label}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {d.total} አባላት (ዋና: {d.main} • ንዑስ: {d.sub} • አክቲቭ: {d.active})
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateLeaderLink(d.dept, d.label)}
+                  disabled={leaderLinkLoading}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-[11px] font-bold shrink-0 disabled:opacity-40"
+                >
+                  <KeyRound className="w-3 h-3" />
+                  ሊንክ ስጥ
+                </button>
+              </div>
+            ))}
+
+            <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-amber-200 bg-amber-50/70">
+              <div>
+                <p className="text-xs font-bold text-amber-950">
+                  ⚠️ ክፍል የሌላቸው (አባል ብቻ)
+                </p>
+                <p className="text-[11px] text-amber-800">
+                  {deptSummary.noDept.total} ተማሪዎች
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  handleGenerateLeaderLink("NO_DEPT", "ክፍል የሌላቸው")
+                }
+                disabled={leaderLinkLoading}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-[11px] font-bold shrink-0 disabled:opacity-40"
+              >
+                <KeyRound className="w-3 h-3" />
+                ሊንክ ስጥ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION: Department Breakdown & Per-Department Print */}
+      {adminSection === "departments" && (
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+          <h3 className="font-bold text-xs sm:text-sm text-gibi-navy">
+            📊 የየክፍላቱ አገልጋዮች እና ክፍል የሌላቸው (Department Breakdown)
+          </h3>
+          <p className="text-[11px] text-slate-500">
+            ለእያንዳንዱ ክፍል ዋና/ንዑስ/አክቲቭ አገልጋዮችን ይዩ እና ለየክፍሉ ፕሪንት ያድርጉ
+          </p>
+        </div>
+
+        <div className="p-3.5 space-y-3">
             {/* Mode Toggle: Class Leader Roster vs Full Academic Report */}
             <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5">
               <span className="text-[11px] font-bold text-slate-700">
@@ -455,20 +615,13 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    setDeptFilter(
-                      deptFilter === NO_DEPT_VALUE ? "ALL" : NO_DEPT_VALUE
-                    );
+                    setDeptFilter(NO_DEPT_VALUE);
+                    setAdminSection("students");
                   }}
                   disabled={deptSummary.noDept.total === 0}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition disabled:opacity-40 ${
-                    deptFilter === NO_DEPT_VALUE
-                      ? "bg-gibi-navy text-white"
-                      : "bg-white border border-amber-300 text-amber-950 hover:bg-amber-100"
-                  }`}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition disabled:opacity-40 bg-white border border-amber-300 text-amber-950 hover:bg-amber-100"
                 >
-                  {deptFilter === NO_DEPT_VALUE
-                    ? "ሁሉንም አሳይ ✓"
-                    : "እነማን ናቸው? (ዝርዝር እይ)"}
+                  እነማን ናቸው? (ዝርዝር እይ)
                 </button>
                 <button
                   type="button"
@@ -609,15 +762,14 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
                       <button
                         type="button"
-                        onClick={() => setDeptFilter(isSelected ? "ALL" : d.dept)}
+                        onClick={() => {
+                          setDeptFilter(d.dept);
+                          setAdminSection("students");
+                        }}
                         disabled={d.total === 0}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition disabled:opacity-40 ${
-                          isSelected
-                            ? "bg-gibi-blue text-white"
-                            : "bg-white border border-slate-300 text-slate-700"
-                        }`}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition disabled:opacity-40 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
                       >
-                        {isSelected ? "ተመርጧል ✓" : "እይ"}
+                        እይ
                       </button>
                       <button
                         type="button"
@@ -706,17 +858,14 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
                           <div className="inline-flex items-center gap-1">
                             <button
                               type="button"
-                              onClick={() =>
-                                setDeptFilter(isSelected ? "ALL" : d.dept)
-                              }
+                              onClick={() => {
+                                setDeptFilter(d.dept);
+                                setAdminSection("students");
+                              }}
                               disabled={d.total === 0}
-                              className={`px-2 py-1 rounded-md text-[10px] font-bold transition disabled:opacity-40 ${
-                                isSelected
-                                  ? "bg-gibi-blue text-white"
-                                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                              }`}
+                              className="px-2 py-1 rounded-md text-[10px] font-bold transition disabled:opacity-40 bg-slate-100 text-slate-700 hover:bg-slate-200"
                             >
-                              {isSelected ? "ተመርጧል ✓" : "እይ"}
+                              እይ
                             </button>
                             <button
                               type="button"
@@ -769,8 +918,75 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
               </table>
             </div>
           </div>
-        )}
       </div>
+      )}
+
+      {/* SECTION: Students (Department Quick Chips + Search + Student List) */}
+      {adminSection === "students" && (
+      <div className="space-y-3">
+        {/* Quick Department Chips */}
+        <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-slate-600">
+              በክፍል ይምረጡ (Filter by Department):
+            </span>
+            {deptFilter !== "ALL" && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handlePrint(
+                      deptFilter === NO_DEPT_VALUE ? "NO_DEPT" : deptFilter,
+                      leaderMode ? "leader" : undefined
+                    )
+                  }
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gibi-navy text-white text-[10px] font-bold"
+                >
+                  <Printer className="w-3 h-3" />
+                  የተመረጠውን ፕሪንት
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setDeptFilter("ALL")}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition ${
+                deptFilter === "ALL"
+                  ? "bg-gibi-navy text-white"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              ሁሉም ({records.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeptFilter(NO_DEPT_VALUE)}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition ${
+                deptFilter === NO_DEPT_VALUE
+                  ? "bg-amber-600 text-white"
+                  : "bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100"
+              }`}
+            >
+              ክፍል የሌላቸው ({deptSummary.noDept.total})
+            </button>
+            {deptSummary.departments.map((d) => (
+              <button
+                key={d.dept}
+                type="button"
+                onClick={() => setDeptFilter(d.dept)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition ${
+                  deptFilter === d.dept
+                    ? "bg-gibi-blue text-white"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                {d.label} ({d.total})
+              </button>
+            ))}
+          </div>
+        </div>
 
       {/* Filters */}
       <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm space-y-2.5">
@@ -950,6 +1166,8 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
             );
           })}
         </div>
+      )}
+      </div>
       )}
     </div>
   );
