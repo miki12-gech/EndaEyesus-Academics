@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSchema, getSql } from "@/lib/db";
 import { verifyAdminAccess } from "@/lib/telegramAuth";
+import { toEthiopianDate } from "@/lib/ethiopianCalendar";
 
 export const dynamic = "force-dynamic";
 
@@ -114,9 +115,15 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const today = new Date().toISOString().split("T")[0];
-    const startStr = String(course.start_date).slice(0, 10);
-    const endStr = String(course.end_date).slice(0, 10);
+    const today = toEthiopianDate(
+      new Date().toISOString().split("T")[0]
+    ).formatted;
+    const startStr = toEthiopianDate(
+      String(course.start_date).slice(0, 10)
+    ).formatted;
+    const endStr = toEthiopianDate(
+      String(course.end_date).slice(0, 10)
+    ).formatted;
 
     const rowsHtml = roster
       .map((r, idx) => {

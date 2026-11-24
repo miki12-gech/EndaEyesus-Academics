@@ -13,7 +13,10 @@ import {
   XCircle,
 } from "lucide-react";
 import QrCodeImage from "@/components/QrCodeImage";
-import { formatTime12h } from "@/lib/courseTime";
+import {
+  formatEthiopianTime,
+  toEthiopianDate,
+} from "@/lib/ethiopianCalendar";
 
 interface SpiritualCourse {
   id: number;
@@ -284,11 +287,12 @@ export default function CoursesStudentView({
                 <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600 bg-slate-50 px-3 py-2 rounded-xl">
                   <span className="inline-flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5 text-gibi-blue" />
-                    {startStr} → {endStr}
+                    {toEthiopianDate(startStr).formatted} →{" "}
+                    {toEthiopianDate(endStr).formatted}
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5 text-amber-600" />
-                    {formatTime12h(c.class_time)} (+{c.grace_minutes} ደቂቃ)
+                    {formatEthiopianTime(c.class_time)} (+{c.grace_minutes} ደቂቃ)
                   </span>
                 </div>
 
@@ -297,7 +301,9 @@ export default function CoursesStudentView({
                     {/* Today's Status */}
                     <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-3">
                       <div className="text-xs">
-                        <span className="text-slate-500">የዛሬ ({today}) ሁኔታ፦ </span>
+                        <span className="text-slate-500">
+                          የዛሬ ({toEthiopianDate(today).formatted}) ሁኔታ፦{" "}
+                        </span>
                         {enrollment.today_status === "present" ? (
                           <span className="font-bold text-emerald-700">
                             ✅ በሰዓቱ ተገኝተዋል (Present)

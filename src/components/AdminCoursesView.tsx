@@ -17,7 +17,12 @@ import {
   XCircle,
 } from "lucide-react";
 import QrCodeImage from "@/components/QrCodeImage";
-import { formatTime12h } from "@/lib/courseTime";
+import {
+  ETHIOPIAN_MONTHS,
+  formatEthiopianTime,
+  toEthiopianDate,
+  toGregorianYmd,
+} from "@/lib/ethiopianCalendar";
 
 interface CourseRow {
   id: number;
@@ -66,14 +71,23 @@ export default function AdminCoursesView({
   const [heldDaysCount, setHeldDaysCount] = useState(0);
   const [today, setToday] = useState("");
 
+  const initialEth = toEthiopianDate(new Date().toISOString().slice(0, 10));
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [totalDays, setTotalDays] = useState("14");
-  const [startDate, setStartDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [endDate, setEndDate] = useState("");
+  const [startEth, setStartEth] = useState({
+    year: initialEth.year,
+    month: initialEth.month,
+    day: initialEth.day,
+  });
+  const [endEth, setEndEth] = useState(() => {
+    const plus14 = new Date(Date.now() + 14 * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    const e = toEthiopianDate(plus14);
+    return { year: e.year, month: e.month, day: e.day };
+  });
   const [classTime, setClassTime] = useState("17:30");
   const [graceMinutes, setGraceMinutes] = useState("15");
   const [creating, setCreating] = useState(false);
@@ -113,6 +127,12 @@ export default function AdminCoursesView({
     e.preventDefault();
     setCreating(true);
     try {
+      const startDate = toGregorianYmd(
+        startEth.year,
+        startEth.month,
+        startEth.day
+      );
+      const endDate = toGregorianYmd(endEth.year, endEth.month, endEth.day);
       const res = await fetch("/api/admin/courses", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
@@ -292,31 +312,109 @@ export default function AdminCoursesView({
               placeholder="አጭር መግለጫ (አማራጭ)..."
               className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
             />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                  መጀመሪያ ቀን
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <label className="block text-[10px] font-bold text-gibi-navy mb-1.5">
+                  📅 መጀመሪያ ቀን (በኢትዮጵያ አቆጣጠር)
                 </label>
-                <input
-                  type="date"
-                  required
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl"
-                />
+                <div className="grid grid-cols-3 gap-1.5">
+                  <select
+                    value={startEth.month}
+                    onChange={(e) =>
+                      setStartEth({ ...startEth, month: Number(e.target.value) })
+                    }
+                    className="px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                  >
+                    {ETHIOPIAN_MONTHS.map((m, i) => (
+                      <option key={m} value={i + 1}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={startEth.day}
+                    onChange={(e) =>
+                      setStartEth({ ...startEth, day: Number(e.target.value) })
+                    }
+                    className="px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                  >
+                    {Array.from(
+                      { length: startEth.month === 13 ? 6 : 30 },
+                      (_, i) => i + 1
+                    ).map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={startEth.year}
+                    onChange={(e) =>
+                      setStartEth({ ...startEth, year: Number(e.target.value) })
+                    }
+                    className="px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                  >
+                    {[2018, 2019, 2020, 2021].map((y) => (
+                      <option key={y} value={y}>
+                        {y} ዓ.ም
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                  መጨረሻ ቀን
+
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <label className="block text-[10px] font-bold text-gibi-navy mb-1.5">
+                  📅 መጨረሻ ቀን (በኢትዮጵያ አቆጣጠር)
                 </label>
-                <input
-                  type="date"
-                  required
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl"
-                />
+                <div className="grid grid-cols-3 gap-1.5">
+                  <select
+                    value={endEth.month}
+                    onChange={(e) =>
+                      setEndEth({ ...endEth, month: Number(e.target.value) })
+                    }
+                    className="px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                  >
+                    {ETHIOPIAN_MONTHS.map((m, i) => (
+                      <option key={m} value={i + 1}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={endEth.day}
+                    onChange={(e) =>
+                      setEndEth({ ...endEth, day: Number(e.target.value) })
+                    }
+                    className="px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                  >
+                    {Array.from(
+                      { length: endEth.month === 13 ? 6 : 30 },
+                      (_, i) => i + 1
+                    ).map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={endEth.year}
+                    onChange={(e) =>
+                      setEndEth({ ...endEth, year: Number(e.target.value) })
+                    }
+                    className="px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                  >
+                    {[2018, 2019, 2020, 2021].map((y) => (
+                      <option key={y} value={y}>
+                        {y} ዓ.ም
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <label className="block text-[10px] font-bold text-slate-600 mb-1">
                   ጠቅላላ ቀናት
@@ -332,7 +430,7 @@ export default function AdminCoursesView({
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                  መጀመሪያ ሰዓት
+                  መጀመሪያ ሰዓት ({formatEthiopianTime(classTime)})
                 </label>
                 <input
                   type="time"
@@ -342,18 +440,18 @@ export default function AdminCoursesView({
                   className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl"
                 />
               </div>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                የመዘግየት ገደብ (Grace Minutes — ከዚህ በኋላ &quot;Late&quot; ይላል)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={graceMinutes}
-                onChange={(e) => setGraceMinutes(e.target.value)}
-                className="w-32 px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl"
-              />
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                  የመዘግየት ገደብ (Grace Min)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={graceMinutes}
+                  onChange={(e) => setGraceMinutes(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl"
+                />
+              </div>
             </div>
           </div>
           <div className="flex justify-end gap-2">
@@ -420,10 +518,10 @@ export default function AdminCoursesView({
                 <p className="text-[11px] text-slate-500 flex items-center gap-2">
                   <span className="inline-flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
-                    {String(c.start_date).slice(0, 10)} →{" "}
-                    {String(c.end_date).slice(0, 10)}
+                    {toEthiopianDate(String(c.start_date).slice(0, 10)).formatted} →{" "}
+                    {toEthiopianDate(String(c.end_date).slice(0, 10)).formatted}
                   </span>
-                  <span>• {formatTime12h(c.class_time)}</span>
+                  <span>• {formatEthiopianTime(c.class_time)}</span>
                 </p>
                 <div className="flex flex-wrap items-center gap-2 text-[11px] pt-1">
                   <span className="inline-flex items-center gap-1 font-bold text-gibi-blue">
@@ -454,7 +552,7 @@ export default function AdminCoursesView({
                 {selectedCourse.title}
               </h4>
               <p className="text-[11px] text-slate-500">
-                የዛሬ ቀን ({today}) • የተካሄዱ ቀናት: {heldDaysCount} /{" "}
+                የዛሬ ቀን ({toEthiopianDate(today).formatted}) • የተካሄዱ ቀናት: {heldDaysCount} /{" "}
                 {selectedCourse.total_days}
               </p>
             </div>
@@ -540,7 +638,7 @@ export default function AdminCoursesView({
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col items-center text-center space-y-2">
               <div className="flex items-center gap-2">
                 <p className="text-xs font-bold text-amber-950">
-                  🔄 የዛሬው ({today}) ክፍል QR (Daily Rotating QR)
+                  🔄 የዛሬው ({toEthiopianDate(today).formatted}) ክፍል QR (Daily Rotating QR)
                 </p>
                 <button
                   type="button"
