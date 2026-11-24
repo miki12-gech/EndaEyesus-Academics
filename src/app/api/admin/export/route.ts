@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSchema, getSql } from "@/lib/db";
 import { verifyAdminAccess } from "@/lib/telegramAuth";
-import { AcademicProfileRow } from "@/lib/constants";
+import { AcademicProfileRow, NO_DEPT_VALUE } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +20,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
+    const url = new URL(req.url);
+    const deptParam = url.searchParams.get("dept") || "";
+
     await ensureSchema();
     const sql = getSql();
-    const rows = (await sql`
+    const allRows = (await sql`
       SELECT * FROM academic_profiles
       ORDER BY is_red_flag DESC, academic_year ASC, full_name ASC
     `) as unknown as AcademicProfileRow[];
+
+    const rows = deptParam
+      ? allRows.filter((r) =>
+          deptParam === "NO_DEPT"
+            ? r.service_dept === NO_DEPT_VALUE
+            : r.service_dept === deptParam
+        )
+      : allRows;
 
     const headers = [
       "ID",

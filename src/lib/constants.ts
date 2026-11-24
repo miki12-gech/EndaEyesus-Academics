@@ -76,6 +76,89 @@ export const RED_FLAG_CHALLENGES = new Set<string>([
 
 export const RED_FLAG_CGPA = "ከ2.00 በታች (Warning / ልዩ ድጋፍ የሚፈልግ)";
 
+export const NO_DEPT_VALUE = "አባል ብቻ (ክፍል የለኝም)";
+
+export type RoleCategory = "main" | "sub" | "active" | "regular";
+
+export function classifyServiceRole(role: string): RoleCategory {
+  if (role.includes("ዋና ክፍል")) return "main";
+  if (role.includes("ንዑስ ክፍል")) return "sub";
+  if (role.includes("አገልጋይ")) return "active";
+  return "regular";
+}
+
+export interface DepartmentStats {
+  dept: string;
+  label: string;
+  total: number;
+  main: number;
+  sub: number;
+  active: number;
+  regular: number;
+  redFlags: number;
+}
+
+export function buildDepartmentStats(rows: AcademicProfileRow[]): {
+  departments: DepartmentStats[];
+  noDept: DepartmentStats;
+} {
+  const map = new Map<string, DepartmentStats>();
+  for (const d of SERVICE_DEPARTMENTS) {
+    if (d === NO_DEPT_VALUE) continue;
+    map.set(d, {
+      dept: d,
+      label: d,
+      total: 0,
+      main: 0,
+      sub: 0,
+      active: 0,
+      regular: 0,
+      redFlags: 0,
+    });
+  }
+
+  const noDept: DepartmentStats = {
+    dept: NO_DEPT_VALUE,
+    label: "ክፍል የሌላቸው (አባል ብቻ)",
+    total: 0,
+    main: 0,
+    sub: 0,
+    active: 0,
+    regular: 0,
+    redFlags: 0,
+  };
+
+  for (const r of rows) {
+    const target =
+      r.service_dept === NO_DEPT_VALUE
+        ? noDept
+        : map.get(r.service_dept) ||
+          (() => {
+            const entry: DepartmentStats = {
+              dept: r.service_dept,
+              label: r.service_dept,
+              total: 0,
+              main: 0,
+              sub: 0,
+              active: 0,
+              regular: 0,
+              redFlags: 0,
+            };
+            map.set(r.service_dept, entry);
+            return entry;
+          })();
+
+    target.total += 1;
+    target[classifyServiceRole(r.service_role)] += 1;
+    if (r.is_red_flag) target.redFlags += 1;
+  }
+
+  return {
+    departments: Array.from(map.values()),
+    noDept,
+  };
+}
+
 export interface AcademicProfilePayload {
   fullName: string;
   phoneNumber: string;

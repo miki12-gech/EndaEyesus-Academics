@@ -19,7 +19,9 @@ import {
   ACADEMIC_YEARS,
   AcademicProfileRow,
   COLLEGES,
+  NO_DEPT_VALUE,
   SERVICE_DEPARTMENTS,
+  buildDepartmentStats,
 } from "@/lib/constants";
 
 interface AdminViewProps {
@@ -55,7 +57,10 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
   const [deptFilter, setDeptFilter] = useState("ALL");
   const [onlyRedFlag, setOnlyRedFlag] = useState(false);
   const [onlyTutors, setOnlyTutors] = useState(false);
+  const [showDeptBreakdown, setShowDeptBreakdown] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const deptSummary = useMemo(() => buildDepartmentStats(records), [records]);
 
   const authHeaders = useMemo(() => {
     const h: Record<string, string> = {};
@@ -126,13 +131,16 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
     onlyTutors,
   ]);
 
-  const buildAuthQuery = () => {
-    if (initData) return `?initData=${encodeURIComponent(initData)}`;
-    if (adminPin) return `?pin=${encodeURIComponent(adminPin)}`;
-    return "";
+  const buildAuthQuery = (extraDept?: string) => {
+    const params = new URLSearchParams();
+    if (initData) params.set("initData", initData);
+    else if (adminPin) params.set("pin", adminPin);
+    if (extraDept) params.set("dept", extraDept);
+    const qs = params.toString();
+    return qs ? `?${qs}` : "";
   };
 
-  const handleExportCsv = async () => {
+  const handleExportCsv = async (deptKey?: string) => {
     setExporting(true);
     try {
       const tg = (
@@ -145,7 +153,8 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
         }
       ).Telegram?.WebApp;
 
-      const exportUrl = `${window.location.origin}/api/admin/export${buildAuthQuery()}`;
+      const query = buildAuthQuery(deptKey);
+      const exportUrl = `${window.location.origin}/api/admin/export${query}`;
 
       // Inside Telegram WebApp, open external browser so file download works reliably
       if (tg?.openLink && initData) {
@@ -153,12 +162,16 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
         return;
       }
 
-      const res = await fetch("/api/admin/export", { headers: authHeaders });
+      const fetchUrl = deptKey
+        ? `/api/admin/export?dept=${encodeURIComponent(deptKey)}`
+        : "/api/admin/export";
+      const res = await fetch(fetchUrl, { headers: authHeaders });
       if (!res.ok) throw new Error("CSV ማውረድ አልተቻለም።");
       const csvText = await res.text();
 
       const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
-      const filename = `enda-eyesus-academic-${new Date().toISOString().slice(0, 10)}.csv`;
+      const suffix = deptKey ? `-${deptKey}` : "";
+      const filename = `enda-eyesus-academic${suffix}-${new Date().toISOString().slice(0, 10)}.csv`;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -176,8 +189,8 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
     }
   };
 
-  const handlePrint = () => {
-    const reportUrl = `${window.location.origin}/api/admin/report${buildAuthQuery()}`;
+  const handlePrint = (deptKey?: string) => {
+    const reportUrl = `${window.location.origin}/api/admin/report${buildAuthQuery(deptKey)}`;
     const tg = (
       window as unknown as {
         Telegram?: {
@@ -218,7 +231,7 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
             አድስ
           </button>
           <button
-            onClick={handlePrint}
+            onClick={() => handlePrint()}
             disabled={records.length === 0}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition disabled:opacity-50"
             title="እንደ ሪፖርት አትም ወይም ወደ PDF ቀይር"
@@ -227,7 +240,7 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
             ፕሪንት (Print / PDF)
           </button>
           <button
-            onClick={handleExportCsv}
+            onClick={() => handleExportCsv()}
             disabled={exporting || records.length === 0}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gibi-gold text-gibi-navy hover:bg-yellow-400 text-xs font-bold transition disabled:opacity-50 shadow-sm"
           >
@@ -302,6 +315,179 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
             {onlyTutors ? "ማጣሪያው በርቷል ✓" : "ለማጣራት ይጫኑ"}
           </p>
         </button>
+      </div>
+
+      {/* Department Breakdown & Per-Department Print */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowDeptBreakdown((v) => !v)}
+          className="w-full px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-left"
+        >
+          <div>
+            <h3 className="font-bold text-xs sm:text-sm text-gibi-navy">
+              📊 የየክፍላቱ አገልጋዮች እና ክፍል የሌላቸው (Department Breakdown)
+            </h3>
+            <p className="text-[11px] text-slate-500">
+              ለእያንዳንዱ ክፍል ዋና/ንዑስ/አክቲቭ አገልጋዮችን ይዩ እና ለየክፍሉ ፕሪንት ያድርጉ
+            </p>
+          </div>
+          {showDeptBreakdown ? (
+            <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
+          )}
+        </button>
+
+        {showDeptBreakdown && (
+          <div className="p-3.5 space-y-3">
+            {/* Highlighted Banner for Students Without Any Department */}
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-amber-950">
+                    ⚠️ ክፍል የሌላቸው (አባል ብቻ)
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-extrabold bg-amber-200 text-amber-950">
+                    {deptSummary.noDept.total} ተማሪዎች
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-800 mt-0.5">
+                  በየትኛውም የአገልግሎት ክፍል ያልተመደቡ ነባር ተማሪዎች
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeptFilter(
+                      deptFilter === NO_DEPT_VALUE ? "ALL" : NO_DEPT_VALUE
+                    );
+                  }}
+                  disabled={deptSummary.noDept.total === 0}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition disabled:opacity-40 ${
+                    deptFilter === NO_DEPT_VALUE
+                      ? "bg-gibi-navy text-white"
+                      : "bg-white border border-amber-300 text-amber-950 hover:bg-amber-100"
+                  }`}
+                >
+                  {deptFilter === NO_DEPT_VALUE
+                    ? "ሁሉንም አሳይ ✓"
+                    : "እነማን ናቸው? (ዝርዝር እይ)"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePrint("NO_DEPT")}
+                  disabled={deptSummary.noDept.total === 0}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gibi-navy text-white hover:bg-gibi-blue text-[11px] font-bold transition disabled:opacity-40"
+                >
+                  <Printer className="w-3 h-3" />
+                  ፕሪንት
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExportCsv("NO_DEPT")}
+                  disabled={deptSummary.noDept.total === 0}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 text-[11px] font-bold transition disabled:opacity-40"
+                >
+                  <Download className="w-3 h-3" />
+                  Excel
+                </button>
+              </div>
+            </div>
+
+            {/* Per-Department Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 border-b border-slate-200">
+                    <th className="text-left py-2 px-2 font-bold">የአገልግሎት ክፍል</th>
+                    <th className="text-center py-2 px-1.5 font-bold">ጠቅላላ</th>
+                    <th className="text-center py-2 px-1.5 font-bold">ዋና</th>
+                    <th className="text-center py-2 px-1.5 font-bold">ንዑስ</th>
+                    <th className="text-center py-2 px-1.5 font-bold">አክቲቭ</th>
+                    <th className="text-center py-2 px-1.5 font-bold">🚨</th>
+                    <th className="text-right py-2 px-2 font-bold">ፕሪንት / ዝርዝር</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {deptSummary.departments.map((d) => {
+                    const isSelected = deptFilter === d.dept;
+                    return (
+                      <tr
+                        key={d.dept}
+                        className={isSelected ? "bg-blue-50/80" : "hover:bg-slate-50"}
+                      >
+                        <td className="py-2 px-2 font-semibold text-gibi-navy">
+                          {d.label}
+                        </td>
+                        <td className="py-2 px-1.5 text-center font-extrabold text-gibi-navy">
+                          {d.total}
+                        </td>
+                        <td className="py-2 px-1.5 text-center text-slate-700">
+                          {d.main}
+                        </td>
+                        <td className="py-2 px-1.5 text-center text-slate-700">
+                          {d.sub}
+                        </td>
+                        <td className="py-2 px-1.5 text-center text-emerald-700 font-semibold">
+                          {d.active}
+                        </td>
+                        <td className="py-2 px-1.5 text-center">
+                          {d.redFlags > 0 ? (
+                            <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold text-[10px]">
+                              {d.redFlags}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">0</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDeptFilter(isSelected ? "ALL" : d.dept)
+                              }
+                              disabled={d.total === 0}
+                              className={`px-2 py-1 rounded-md text-[10px] font-bold transition disabled:opacity-40 ${
+                                isSelected
+                                  ? "bg-gibi-blue text-white"
+                                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                              }`}
+                            >
+                              {isSelected ? "ተመርጧል ✓" : "እይ"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePrint(d.dept)}
+                              disabled={d.total === 0}
+                              title={`${d.label} — ፕሪንት (Print / PDF)`}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gibi-navy text-white hover:bg-gibi-blue text-[10px] font-bold transition disabled:opacity-40"
+                            >
+                              <Printer className="w-3 h-3" />
+                              ፕሪንት
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleExportCsv(d.dept)}
+                              disabled={d.total === 0}
+                              title={`${d.label} — Excel (CSV)`}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-100 text-amber-900 hover:bg-amber-200 text-[10px] font-bold transition disabled:opacity-40"
+                            >
+                              <Download className="w-3 h-3" />
+                              CSV
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Filters */}

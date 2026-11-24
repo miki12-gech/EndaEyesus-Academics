@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSchema, getSql } from "@/lib/db";
 import { verifyAdminAccess } from "@/lib/telegramAuth";
-import { AcademicProfileRow } from "@/lib/constants";
+import {
+  AcademicProfileRow,
+  NO_DEPT_VALUE,
+  buildDepartmentStats,
+  classifyServiceRole,
+} from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -24,26 +29,100 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const url = new URL(req.url);
+    const deptParam = url.searchParams.get("dept") || "";
+
     await ensureSchema();
     const sql = getSql();
-    const rows = (await sql`
+    const allRows = (await sql`
       SELECT * FROM academic_profiles
       ORDER BY is_red_flag DESC, academic_year ASC, full_name ASC
     `) as unknown as AcademicProfileRow[];
 
+    const rows = deptParam
+      ? allRows.filter((r) =>
+          deptParam === "NO_DEPT"
+            ? r.service_dept === NO_DEPT_VALUE
+            : r.service_dept === deptParam
+        )
+      : allRows;
+
     const total = rows.length;
     const redFlags = rows.filter((r) => r.is_red_flag).length;
+    const mainCount = rows.filter(
+      (r) => classifyServiceRole(r.service_role) === "main"
+    ).length;
+    const subCount = rows.filter(
+      (r) => classifyServiceRole(r.service_role) === "sub"
+    ).length;
+    const activeCount = rows.filter(
+      (r) => classifyServiceRole(r.service_role) === "active"
+    ).length;
     const servants = rows.filter(
       (r) =>
         r.service_role !== "አባል ብቻ (Regular Member)" &&
-        r.service_dept !== "አባል ብቻ (ክፍል የለኝም)"
+        r.service_dept !== NO_DEPT_VALUE
     ).length;
     const tutors = rows.filter(
       (r) => r.can_help_with && r.can_help_with.trim().length > 0
     ).length;
     const gcCount = rows.filter((r) => r.academic_year.includes("GC")).length;
 
-    const url = new URL(req.url);
+    const deptLabel =
+      deptParam === "NO_DEPT"
+        ? "ክፍል የሌላቸው (አባል ብቻ)"
+        : deptParam
+          ? `${deptParam} ክፍል`
+          : "ሁሉም ክፍላት";
+
+    const { departments: deptStats, noDept: noDeptStats } =
+      buildDepartmentStats(allRows);
+
+    const deptSummaryHtml = !deptParam
+      ? `
+    <div style="margin-bottom: 18px;">
+      <h2 style="font-size: 13px; color: #0f294a; margin: 0 0 8px 0;">የክፍላት አጠቃላይ መረጃ (Department Breakdown)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>የአገልግሎት ክፍል</th>
+            <th class="center">ጠቅላላ</th>
+            <th class="center">ዋና ክፍል</th>
+            <th class="center">ንዑስ ክፍል</th>
+            <th class="center">አክቲቭ አገልጋይ</th>
+            <th class="center">አባል ብቻ</th>
+            <th class="center">🚨 Red Flag</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${deptStats
+            .map(
+              (d) => `
+          <tr>
+            <td class="bold">${esc(d.label)}</td>
+            <td class="center bold">${d.total}</td>
+            <td class="center">${d.main}</td>
+            <td class="center">${d.sub}</td>
+            <td class="center">${d.active}</td>
+            <td class="center">${d.regular}</td>
+            <td class="center">${d.redFlags > 0 ? `<span class="flag-badge">${d.redFlags}</span>` : "0"}</td>
+          </tr>`
+            )
+            .join("")}
+          <tr style="background: #fefce8;">
+            <td class="bold">${esc(noDeptStats.label)}</td>
+            <td class="center bold">${noDeptStats.total}</td>
+            <td class="center">${noDeptStats.main}</td>
+            <td class="center">${noDeptStats.sub}</td>
+            <td class="center">${noDeptStats.active}</td>
+            <td class="center">${noDeptStats.regular}</td>
+            <td class="center">${noDeptStats.redFlags > 0 ? `<span class="flag-badge">${noDeptStats.redFlags}</span>` : "0"}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`
+      : "";
+
     const exportQuery = url.search ? url.search : "";
     const today = new Date().toISOString().split("T")[0];
 
@@ -262,7 +341,7 @@ export async function GET(req: NextRequest) {
   <div class="sheet">
     <div class="report-header">
       <div>
-        <h1>እንዳ ኢየሱስ ግቢ ጉባኤ — የአካዳሚክ ክፍል</h1>
+        <h1>እንዳ ኢየሱስ ግቢ ጉባኤ — ${esc(deptLabel)}</h1>
         <p>የነባር ተማሪዎችና አገልጋዮች የትምህርት ሁኔታ (Status) እና የድጋፍ ሪፖርት</p>
       </div>
       <div class="meta">
@@ -276,7 +355,21 @@ export async function GET(req: NextRequest) {
         <div class="kpi-label">ጠቅላላ ተመዝጋቢ</div>
         <div class="kpi-val">${total}</div>
       </div>
+      ${
+        deptParam
+          ? `<div class="kpi">
+        <div class="kpi-label">ዋና ክፍል</div>
+        <div class="kpi-val">${mainCount}</div>
+      </div>
       <div class="kpi">
+        <div class="kpi-label">ንዑስ ክፍል</div>
+        <div class="kpi-val">${subCount}</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">አክቲቭ አገልጋይ</div>
+        <div class="kpi-val">${activeCount}</div>
+      </div>`
+          : `<div class="kpi">
         <div class="kpi-label">GC ተመራቂዎች</div>
         <div class="kpi-val">${gcCount}</div>
       </div>
@@ -284,15 +377,18 @@ export async function GET(req: NextRequest) {
         <div class="kpi-label">ንቁ አገልጋዮች</div>
         <div class="kpi-val">${servants}</div>
       </div>
+      <div class="kpi">
+        <div class="kpi-label">🎓 ማስጠናት የሚችሉ</div>
+        <div class="kpi-val">${tutors}</div>
+      </div>`
+      }
       <div class="kpi danger">
         <div class="kpi-label">🚨 ልዩ ድጋፍ (Red Flag)</div>
         <div class="kpi-val">${redFlags}</div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">🎓 ማስጠናት የሚችሉ</div>
-        <div class="kpi-val">${tutors}</div>
-      </div>
     </div>
+
+    ${deptSummaryHtml}
 
     <table>
       <thead>
