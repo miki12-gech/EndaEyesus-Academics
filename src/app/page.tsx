@@ -25,6 +25,7 @@ import {
   SUPPORT_NEEDS,
 } from "@/lib/constants";
 import AdminView from "@/components/AdminView";
+import CoursesStudentView from "@/components/CoursesStudentView";
 
 declare global {
   interface Window {
@@ -74,7 +75,10 @@ const INITIAL_FORM: AcademicProfilePayload = {
 export default function AcademicMiniAppPage() {
   const [initData, setInitData] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState<"portal" | "admin">("portal");
+  const [activeTab, setActiveTab] = useState<"portal" | "courses" | "admin">(
+    "portal"
+  );
+  const [highlightCourseCode, setHighlightCourseCode] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
 
@@ -106,6 +110,13 @@ export default function AcademicMiniAppPage() {
 
     const urlParams = new URLSearchParams(window.location.search);
     const requestedTab = urlParams.get("tab");
+    const courseCodeParam = urlParams.get("course");
+    if (courseCodeParam) {
+      setHighlightCourseCode(courseCodeParam);
+      setActiveTab("courses");
+    } else if (requestedTab === "courses") {
+      setActiveTab("courses");
+    }
 
     const loadProfile = async () => {
       try {
@@ -302,38 +313,61 @@ export default function AcademicMiniAppPage() {
         </div>
       </header>
 
-      {/* Admin Switcher (Only visible to verified Telegram Admins) */}
-      {isAdmin && (
-        <div className="grid grid-cols-2 gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm mb-4">
-          <button
-            type="button"
-            onClick={() => setActiveTab("portal")}
-            className={`py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
-              activeTab === "portal"
-                ? "bg-gibi-navy text-white shadow-sm"
-                : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <BookOpen className="w-4 h-4" />
-            የተማሪ ፎርም
-          </button>
+      {/* Navigation Switcher: Academic Form, Spiritual Courses, and Admin */}
+      <div
+        className={`grid ${isAdmin ? "grid-cols-3" : "grid-cols-2"} gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm mb-4`}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab("portal")}
+          className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+            activeTab === "portal"
+              ? "bg-gibi-navy text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <GraduationCap className="w-4 h-4 shrink-0" />
+          <span>የአካዳሚክ ፎርም</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("courses")}
+          className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+            activeTab === "courses"
+              ? "bg-gibi-blue text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <BookOpen className="w-4 h-4 shrink-0" />
+          <span>መንፈሳዊ ኮርስ</span>
+        </button>
+
+        {isAdmin && (
           <button
             type="button"
             onClick={() => setActiveTab("admin")}
-            className={`py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+            className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
               activeTab === "admin"
                 ? "bg-gibi-gold text-gibi-navy shadow-sm"
                 : "text-slate-600 hover:bg-slate-50"
             }`}
           >
-            <ShieldCheck className="w-4 h-4" />
-            አድሚን ዳሽቦርድ
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            <span>አድሚን</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {activeTab === "admin" && isAdmin ? (
         <AdminView initData={initData} />
+      ) : activeTab === "courses" ? (
+        <CoursesStudentView
+          initData={initData}
+          defaultFullName={form.fullName}
+          defaultPhone={form.phoneNumber}
+          highlightEnrollCode={highlightCourseCode}
+        />
       ) : loadingProfile ? (
         <div className="bg-white rounded-3xl p-10 text-center border border-slate-200 shadow-sm">
           <div className="w-8 h-8 border-4 border-gibi-blue border-t-transparent rounded-full animate-spin mx-auto mb-3" />

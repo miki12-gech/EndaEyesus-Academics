@@ -18,7 +18,9 @@ import {
   Copy,
   Check,
   Trash2,
+  BookOpen,
 } from "lucide-react";
+import AdminCoursesView from "@/components/AdminCoursesView";
 import {
   ACADEMIC_YEARS,
   AcademicProfileRow,
@@ -62,7 +64,7 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
   const [onlyRedFlag, setOnlyRedFlag] = useState(false);
   const [onlyTutors, setOnlyTutors] = useState(false);
   const [adminSection, setAdminSection] = useState<
-    "students" | "departments" | "links"
+    "students" | "departments" | "links" | "courses"
   >("students");
   const [leaderMode, setLeaderMode] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -385,8 +387,8 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
         </button>
       </div>
 
-      {/* Section Navigation (Clean 3-Tab Switcher) */}
-      <div className="grid grid-cols-3 gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+      {/* Section Navigation (Clean 4-Tab Switcher) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
         <button
           type="button"
           onClick={() => setAdminSection("students")}
@@ -425,7 +427,29 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
           <KeyRound className="w-4 h-4 shrink-0" />
           <span>መዳረሻ ሊንክ</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setAdminSection("courses")}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+            adminSection === "courses"
+              ? "bg-gibi-blue text-white shadow-sm"
+              : "text-gibi-blue bg-blue-50 hover:bg-blue-100"
+          }`}
+        >
+          <BookOpen className="w-4 h-4 shrink-0" />
+          <span>ኮርሶች (QR)</span>
+        </button>
       </div>
+
+      {/* SECTION: Spiritual Courses & QR Attendance */}
+      {adminSection === "courses" && (
+        <AdminCoursesView
+          authHeaders={authHeaders}
+          buildAuthQuery={() => buildAuthQuery()}
+          initData={initData}
+        />
+      )}
 
       {/* SECTION: Leader Access Links (Shown ONLY when 'መዳረሻ ሊንክ' is clicked) */}
       {adminSection === "links" && (
