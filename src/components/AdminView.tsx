@@ -572,8 +572,92 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
               </div>
             )}
 
-            {/* Per-Department Table */}
-            <div className="overflow-x-auto">
+            {/* Mobile Department Cards (no horizontal scroll needed) */}
+            <div className="sm:hidden space-y-2">
+              {deptSummary.departments.map((d) => {
+                const isSelected = deptFilter === d.dept;
+                return (
+                  <div
+                    key={d.dept}
+                    className={`rounded-xl border p-3 space-y-2 ${
+                      isSelected
+                        ? "bg-blue-50/70 border-gibi-blue"
+                        : "bg-slate-50/60 border-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-xs text-gibi-navy">
+                        {d.label}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-gibi-navy text-white">
+                        ጠቅላላ: {d.total}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                      <span>ዋና: <b>{d.main}</b></span>
+                      <span>•</span>
+                      <span>ንዑስ: <b>{d.sub}</b></span>
+                      <span>•</span>
+                      <span className="text-emerald-700">አክቲቭ: <b>{d.active}</b></span>
+                      {d.redFlags > 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="text-red-700 font-bold">🚨 {d.redFlags}</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setDeptFilter(isSelected ? "ALL" : d.dept)}
+                        disabled={d.total === 0}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition disabled:opacity-40 ${
+                          isSelected
+                            ? "bg-gibi-blue text-white"
+                            : "bg-white border border-slate-300 text-slate-700"
+                        }`}
+                      >
+                        {isSelected ? "ተመርጧል ✓" : "እይ"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handlePrint(d.dept, leaderMode ? "leader" : undefined)
+                        }
+                        disabled={d.total === 0}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gibi-navy text-white text-[11px] font-bold disabled:opacity-40"
+                      >
+                        <Printer className="w-3 h-3" />
+                        ፕሪንት
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleExportCsv(d.dept, leaderMode ? "leader" : undefined)
+                        }
+                        disabled={d.total === 0}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 text-[11px] font-bold disabled:opacity-40"
+                      >
+                        <Download className="w-3 h-3" />
+                        CSV
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateLeaderLink(d.dept, d.label)}
+                        disabled={leaderLinkLoading}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold disabled:opacity-40"
+                      >
+                        <KeyRound className="w-3 h-3" />
+                        መዳረሻ ሊንክ
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Per-Department Table */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-100 text-slate-700 border-b border-slate-200">
