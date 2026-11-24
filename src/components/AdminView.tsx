@@ -12,6 +12,8 @@ import {
   HeartHandshake,
   ChevronDown,
   ChevronUp,
+  Printer,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   ACADEMIC_YEARS,
@@ -129,20 +131,39 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
     try {
       const res = await fetch("/api/admin/export", { headers: authHeaders });
       if (!res.ok) throw new Error("CSV ማውረድ አልተቻለም።");
-      const blob = await res.blob();
+      const csvText = await res.text();
+      
+      const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+      const filename = `enda-eyesus-academic-${new Date().toISOString().slice(0, 10)}.csv`;
+      
+      // If running inside Telegram WebApp, open direct link or data URI
+      const tg = (window as unknown as { Telegram?: { WebApp?: { openLink?: (url: string) => void; downloadFile?: (params: { url: string; file_name: string }) => void } } }).Telegram?.WebApp;
+      
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `enda-eyesus-academic-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.setAttribute("download", filename);
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      setTimeout(() => {
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      }, 500);
+
+      // If Telegram WebApp has openLink, also trigger direct download link fallback
+      if (tg?.openLink) {
+        const pinParam = adminPin ? `?pin=${encodeURIComponent(adminPin)}` : "";
+        tg.openLink(`${window.location.origin}/api/admin/export${pinParam}`);
+      }
     } catch (err) {
       alert((err as Error).message);
     } finally {
       setExporting(false);
     }
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   return (
@@ -168,11 +189,20 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
             አድስ
           </button>
           <button
+            onClick={handlePrint}
+            disabled={records.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition disabled:opacity-50"
+            title="እንደ ሪፖርት አትም ወይም ወደ PDF ቀይር"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            ፕሪንት (Print / PDF)
+          </button>
+          <button
             onClick={handleExportCsv}
             disabled={exporting || records.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gibi-gold text-gibi-navy hover:bg-yellow-400 text-xs font-bold transition disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gibi-gold text-gibi-navy hover:bg-yellow-400 text-xs font-bold transition disabled:opacity-50 shadow-sm"
           >
-            <Download className="w-3.5 h-3.5" />
+            <FileSpreadsheet className="w-3.5 h-3.5" />
             {exporting ? "በማውረድ ላይ..." : "Excel (CSV)"}
           </button>
         </div>
