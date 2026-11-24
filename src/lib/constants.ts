@@ -1,10 +1,9 @@
 export const ACADEMIC_YEARS = [
-  "2ኛ ዓመት (2nd Year)",
-  "3ኛ ዓመት (3rd Year)",
-  "4ኛ ዓመት (4th Year)",
-  "5ኛ ዓመት (5th Year)",
-  "6ኛ ዓመት (6th Year)",
-  "ተመራቂ (GC / Graduating Class)",
+  "2nd",
+  "3rd",
+  "4th",
+  "4th(GC)",
+  "5th(GC)",
 ] as const;
 
 export const COLLEGES = [
@@ -22,7 +21,7 @@ export const COLLEGES = [
 export const SERVICE_ROLES = [
   "ዋና ክፍል (Main Dept. Head/Member)",
   "ንዑስ ክፍል (Sub-Committee)",
-  "አገልጋይ / አስተባባሪ (Active Servant)",
+  "አገልጋይ(active servant)",
   "አባል ብቻ (Regular Member)",
 ] as const;
 

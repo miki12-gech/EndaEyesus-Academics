@@ -283,8 +283,7 @@ export default function AcademicMiniAppPage() {
         <div className="absolute -right-6 -top-6 w-28 h-28 bg-gibi-gold/15 rounded-full blur-xl" />
         <div className="relative z-10">
           <div className="flex items-center justify-between gap-2 mb-2">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold bg-white/15 px-2.5 py-1 rounded-full text-amber-200">
-              <Sparkles className="w-3.5 h-3.5" />
+            <span className="inline-flex items-center text-[11px] font-semibold bg-white/15 px-2.5 py-1 rounded-full text-amber-200">
               እንዳ ኢየሱስ ግቢ ጉባኤ
             </span>
             {alreadySubmitted && activeTab === "portal" && (
@@ -419,7 +418,7 @@ export default function AcademicMiniAppPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  ሙሉ ስም (ከነአባት ስም) *
+                  ስም(ከነ አባት) *
                 </label>
                 <input
                   type="text"
