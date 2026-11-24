@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url);
     const deptParam = url.searchParams.get("dept") || "";
+    const modeParam = url.searchParams.get("mode") || "";
+    const isLeaderMode = modeParam === "leader";
 
     await ensureSchema();
     const sql = getSql();
@@ -37,6 +39,45 @@ export async function GET(req: NextRequest) {
             : r.service_dept === deptParam
         )
       : allRows;
+
+    if (isLeaderMode) {
+      const leaderHeaders = [
+        "#",
+        "ሙሉ ስም (Full Name)",
+        "ስልክ (Phone)",
+        "Telegram",
+        "የአገልግሎት ክፍል (Service Dept)",
+        "የአገልግሎት ደረጃ (Role)",
+      ];
+      const leaderLines = [leaderHeaders.map(csvEscape).join(",")];
+      rows.forEach((r, idx) => {
+        const serviceDeptDisplay =
+          r.service_dept === "ሌላ (Other)" && r.service_dept_other
+            ? `ሌላ: ${r.service_dept_other}`
+            : r.service_dept;
+        leaderLines.push(
+          [
+            idx + 1,
+            r.full_name,
+            r.phone_number,
+            r.telegram_username ? `@${r.telegram_username}` : "",
+            serviceDeptDisplay,
+            r.service_role,
+          ]
+            .map(csvEscape)
+            .join(",")
+        );
+      });
+      const csvContent = "\uFEFF" + leaderLines.join("\r\n");
+      return new NextResponse(csvContent, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition":
+            'attachment; filename="enda-eyesus-class-leader-list.csv"',
+        },
+      });
+    }
 
     const headers = [
       "ID",

@@ -58,6 +58,7 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
   const [onlyRedFlag, setOnlyRedFlag] = useState(false);
   const [onlyTutors, setOnlyTutors] = useState(false);
   const [showDeptBreakdown, setShowDeptBreakdown] = useState(true);
+  const [leaderMode, setLeaderMode] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const deptSummary = useMemo(() => buildDepartmentStats(records), [records]);
@@ -131,16 +132,17 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
     onlyTutors,
   ]);
 
-  const buildAuthQuery = (extraDept?: string) => {
+  const buildAuthQuery = (extraDept?: string, mode?: string) => {
     const params = new URLSearchParams();
     if (initData) params.set("initData", initData);
     else if (adminPin) params.set("pin", adminPin);
     if (extraDept) params.set("dept", extraDept);
+    if (mode) params.set("mode", mode);
     const qs = params.toString();
     return qs ? `?${qs}` : "";
   };
 
-  const handleExportCsv = async (deptKey?: string) => {
+  const handleExportCsv = async (deptKey?: string, mode?: string) => {
     setExporting(true);
     try {
       const tg = (
@@ -153,7 +155,7 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
         }
       ).Telegram?.WebApp;
 
-      const query = buildAuthQuery(deptKey);
+      const query = buildAuthQuery(deptKey, mode);
       const exportUrl = `${window.location.origin}/api/admin/export${query}`;
 
       // Inside Telegram WebApp, open external browser so file download works reliably
@@ -162,9 +164,11 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
         return;
       }
 
-      const fetchUrl = deptKey
-        ? `/api/admin/export?dept=${encodeURIComponent(deptKey)}`
-        : "/api/admin/export";
+      const fetchParams = new URLSearchParams();
+      if (deptKey) fetchParams.set("dept", deptKey);
+      if (mode) fetchParams.set("mode", mode);
+      const fetchQs = fetchParams.toString();
+      const fetchUrl = `/api/admin/export${fetchQs ? `?${fetchQs}` : ""}`;
       const res = await fetch(fetchUrl, { headers: authHeaders });
       if (!res.ok) throw new Error("CSV ማውረድ አልተቻለም።");
       const csvText = await res.text();
@@ -189,8 +193,8 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
     }
   };
 
-  const handlePrint = (deptKey?: string) => {
-    const reportUrl = `${window.location.origin}/api/admin/report${buildAuthQuery(deptKey)}`;
+  const handlePrint = (deptKey?: string, mode?: string) => {
+    const reportUrl = `${window.location.origin}/api/admin/report${buildAuthQuery(deptKey, mode)}`;
     const tg = (
       window as unknown as {
         Telegram?: {
@@ -341,6 +345,37 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
 
         {showDeptBreakdown && (
           <div className="p-3.5 space-y-3">
+            {/* Mode Toggle: Class Leader Roster vs Full Academic Report */}
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+              <span className="text-[11px] font-bold text-slate-700">
+                ለክፍል ተጠሪዎች የሚሰጥ የፕሪንት/CSV ዓይነት፦
+              </span>
+              <div className="inline-flex rounded-lg bg-slate-200 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setLeaderMode(true)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
+                    leaderMode
+                      ? "bg-gibi-navy text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  📋 ለክፍል ተጠሪ (ስም፣ ስልክ፣ Telegram፣ አገልግሎት)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLeaderMode(false)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${
+                    !leaderMode
+                      ? "bg-gibi-navy text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  📊 ሙሉ የአካዳሚክ መረጃ
+                </button>
+              </div>
+            </div>
+
             {/* Highlighted Banner for Students Without Any Department */}
             <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
               <div>
@@ -377,7 +412,9 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handlePrint("NO_DEPT")}
+                  onClick={() =>
+                    handlePrint("NO_DEPT", leaderMode ? "leader" : undefined)
+                  }
                   disabled={deptSummary.noDept.total === 0}
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gibi-navy text-white hover:bg-gibi-blue text-[11px] font-bold transition disabled:opacity-40"
                 >
@@ -386,7 +423,9 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleExportCsv("NO_DEPT")}
+                  onClick={() =>
+                    handleExportCsv("NO_DEPT", leaderMode ? "leader" : undefined)
+                  }
                   disabled={deptSummary.noDept.total === 0}
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 text-[11px] font-bold transition disabled:opacity-40"
                 >
@@ -460,7 +499,12 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handlePrint(d.dept)}
+                              onClick={() =>
+                                handlePrint(
+                                  d.dept,
+                                  leaderMode ? "leader" : undefined
+                                )
+                              }
                               disabled={d.total === 0}
                               title={`${d.label} — ፕሪንት (Print / PDF)`}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gibi-navy text-white hover:bg-gibi-blue text-[10px] font-bold transition disabled:opacity-40"
@@ -470,7 +514,12 @@ export default function AdminView({ initData, adminPin }: AdminViewProps) {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleExportCsv(d.dept)}
+                              onClick={() =>
+                                handleExportCsv(
+                                  d.dept,
+                                  leaderMode ? "leader" : undefined
+                                )
+                              }
                               disabled={d.total === 0}
                               title={`${d.label} — Excel (CSV)`}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-100 text-amber-900 hover:bg-amber-200 text-[10px] font-bold transition disabled:opacity-40"

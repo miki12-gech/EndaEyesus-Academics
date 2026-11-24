@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url);
     const deptParam = url.searchParams.get("dept") || "";
+    const modeParam = url.searchParams.get("mode") || "";
+    const isLeaderMode = modeParam === "leader";
 
     await ensureSchema();
     const sql = getSql();
@@ -149,6 +151,20 @@ export async function GET(req: NextRequest) {
           .filter(Boolean)
           .join("፣ ");
 
+        if (isLeaderMode) {
+          return `
+        <tr>
+          <td class="center">${idx + 1}</td>
+          <td class="name">${esc(r.full_name)}</td>
+          <td>${esc(r.phone_number)}</td>
+          <td>${r.telegram_username ? `@${esc(r.telegram_username)}` : "—"}</td>
+          <td>
+            <div class="bold">${esc(serviceDept)}</div>
+            <div class="sub">${esc(r.service_role)}</div>
+          </td>
+        </tr>`;
+        }
+
         return `
         <tr class="${r.is_red_flag ? "red-row" : ""}">
           <td class="center">${idx + 1}</td>
@@ -182,10 +198,10 @@ export async function GET(req: NextRequest) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>እንዳ ኢየሱስ ግቢ ጉባኤ — የአካዳሚክ ሪፖርት (${today})</title>
+  <title>እንዳ ኢየሱስ ግቢ ጉባኤ — ${esc(deptLabel)} (${today})</title>
   <style>
     @page {
-      size: A4 landscape;
+      size: ${isLeaderMode ? "A4 portrait" : "A4 landscape"};
       margin: 10mm;
     }
     * { box-sizing: border-box; }
@@ -342,7 +358,11 @@ export async function GET(req: NextRequest) {
     <div class="report-header">
       <div>
         <h1>እንዳ ኢየሱስ ግቢ ጉባኤ — ${esc(deptLabel)}</h1>
-        <p>የነባር ተማሪዎችና አገልጋዮች የትምህርት ሁኔታ (Status) እና የድጋፍ ሪፖርት</p>
+        <p>${
+          isLeaderMode
+            ? "የክፍል ተጠሪዎች ዝርዝር (ሙሉ ስም፣ ስልክ፣ Telegram እና አገልግሎት)"
+            : "የነባር ተማሪዎችና አገልጋዮች የትምህርት ሁኔታ (Status) እና የድጋፍ ሪፖርት"
+        }</p>
       </div>
       <div class="meta">
         <div><strong>ቀን (Date):</strong> ${today}</div>
@@ -350,13 +370,13 @@ export async function GET(req: NextRequest) {
       </div>
     </div>
 
-    <div class="kpi-grid">
+    <div class="kpi-grid" style="grid-template-columns: repeat(${isLeaderMode ? 4 : 5}, 1fr);">
       <div class="kpi">
         <div class="kpi-label">ጠቅላላ ተመዝጋቢ</div>
         <div class="kpi-val">${total}</div>
       </div>
       ${
-        deptParam
+        deptParam || isLeaderMode
           ? `<div class="kpi">
         <div class="kpi-label">ዋና ክፍል</div>
         <div class="kpi-val">${mainCount}</div>
@@ -382,17 +402,30 @@ export async function GET(req: NextRequest) {
         <div class="kpi-val">${tutors}</div>
       </div>`
       }
-      <div class="kpi danger">
+      ${
+        isLeaderMode
+          ? ""
+          : `<div class="kpi danger">
         <div class="kpi-label">🚨 ልዩ ድጋፍ (Red Flag)</div>
         <div class="kpi-val">${redFlags}</div>
-      </div>
+      </div>`
+      }
     </div>
 
-    ${deptSummaryHtml}
+    ${isLeaderMode ? "" : deptSummaryHtml}
 
     <table>
       <thead>
-        <tr>
+        ${
+          isLeaderMode
+            ? `<tr>
+          <th class="center">#</th>
+          <th>ሙሉ ስም (Full Name)</th>
+          <th>ስልክ ቁጥር (Phone)</th>
+          <th>Telegram</th>
+          <th>አገልግሎት (Service Dept & Role)</th>
+        </tr>`
+            : `<tr>
           <th class="center">#</th>
           <th>ሙሉ ስም እና ስልክ</th>
           <th class="center">Batch</th>
@@ -402,10 +435,11 @@ export async function GET(req: NextRequest) {
           <th>የትምህርት እክሎች</th>
           <th>የሚፈልጉት ድጋፍ</th>
           <th>ማገዝ የሚችሉት</th>
-        </tr>
+        </tr>`
+        }
       </thead>
       <tbody>
-        ${tableRows || `<tr><td colspan="9" class="center">ምንም የተመዘገበ መረጃ የለም።</td></tr>`}
+        ${tableRows || `<tr><td colspan="${isLeaderMode ? 5 : 9}" class="center">ምንም የተመዘገበ መረጃ የለም።</td></tr>`}
       </tbody>
     </table>
   </div>
