@@ -19,6 +19,7 @@ import {
 } from "@/lib/ethiopianCalendar";
 import {
   formatClassDaysLabel,
+  getCheckInWindowBounds,
   getEthiopianWeekdayName,
   isScheduledClassDay,
 } from "@/lib/courseTime";
@@ -32,6 +33,8 @@ interface SpiritualCourse {
   end_date: string;
   class_time: string;
   grace_minutes: number;
+  early_minutes?: number;
+  duration_minutes?: number;
   class_days?: number[];
   enroll_code: string;
   held_days: number;
@@ -303,12 +306,34 @@ export default function CoursesStudentView({
                   <span className="font-semibold text-gibi-blue">
                     📆 {formatClassDaysLabel(c.class_days)}
                   </span>
+                  {(() => {
+                    const win = getCheckInWindowBounds(
+                      c.class_time,
+                      Number(c.early_minutes ?? 60),
+                      Number(c.grace_minutes ?? 15),
+                      Number(c.duration_minutes ?? 90)
+                    );
+                    return (
+                      <span className="text-slate-500">
+                        🔓 መግቢያ: {win.openTimeEth} – {win.closeTimeEth}
+                      </span>
+                    );
+                  })()}
                 </div>
 
-                {today && !isScheduledClassDay(today, c.class_days) && (
-                  <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
-                    ℹ️ ዛሬ ({getEthiopianWeekdayName(today)}) መደበኛ የኮርሱ ቀን አይደለም።
+                {today && today < startStr ? (
+                  <p className="text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl">
+                    📅 ኮርሱ ገና አልተጀመረም — የሚጀምረው{" "}
+                    {toEthiopianDate(startStr).formatted} (
+                    {getEthiopianWeekdayName(startStr)}) ነው።
                   </p>
+                ) : (
+                  today &&
+                  !isScheduledClassDay(today, c.class_days) && (
+                    <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                      ℹ️ ዛሬ ({getEthiopianWeekdayName(today)}) መደበኛ የኮርሱ ቀን አይደለም።
+                    </p>
+                  )
                 )}
 
                 {enrollment ? (

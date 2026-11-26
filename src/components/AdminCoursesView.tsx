@@ -30,6 +30,7 @@ import {
   ETHIOPIAN_WEEKDAYS,
   countScheduledDays,
   formatClassDaysLabel,
+  getCheckInWindowBounds,
   getEthiopianWeekdayName,
   isScheduledClassDay,
   normalizeClassDays,
@@ -45,6 +46,8 @@ interface CourseRow {
   end_date: string;
   class_time: string;
   grace_minutes: number;
+  early_minutes?: number;
+  duration_minutes?: number;
   class_days?: number[];
   enroll_code: string;
   active_session_code: string | null;
@@ -80,6 +83,8 @@ interface CourseDraft {
   totalDays: string;
   classTime: string;
   graceMinutes: string;
+  earlyMinutes: string;
+  durationMinutes: string;
   classDays: number[];
 }
 
@@ -166,6 +171,8 @@ function makeInitialDraft(): CourseDraft {
     totalDays: "14",
     classTime: "17:30",
     graceMinutes: "15",
+    earlyMinutes: "60",
+    durationMinutes: "90",
     classDays: [...ALL_WEEKDAYS],
   };
 }
@@ -181,6 +188,8 @@ function draftFromCourse(course: CourseRow): CourseDraft {
     totalDays: String(course.total_days),
     classTime: course.class_time || "17:30",
     graceMinutes: String(course.grace_minutes ?? 15),
+    earlyMinutes: String(course.early_minutes ?? 60),
+    durationMinutes: String(course.duration_minutes ?? 90),
     classDays: normalizeClassDays(course.class_days),
   };
 }
@@ -205,7 +214,10 @@ export default function AdminCoursesView({
   const [savingCourse, setSavingCourse] = useState(false);
 
   const [qrPanel, setQrPanel] = useState<"none" | "enroll" | "session">("none");
-  const [scanResult, setScanResult] = useState<string | null>(null);
+  const [scanResult, setScanResult] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
   const [manualBadge, setManualBadge] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -294,6 +306,8 @@ export default function AdminCoursesView({
             endDate,
             classTime: draft.classTime,
             graceMinutes: Number(draft.graceMinutes),
+            earlyMinutes: Number(draft.earlyMinutes),
+            durationMinutes: Number(draft.durationMinutes),
             classDays: draft.classDays,
           }),
         });
@@ -313,6 +327,8 @@ export default function AdminCoursesView({
             endDate,
             classTime: draft.classTime,
             graceMinutes: Number(draft.graceMinutes),
+            earlyMinutes: Number(draft.earlyMinutes),
+            durationMinutes: Number(draft.durationMinutes),
             classDays: draft.classDays,
           }),
         });
@@ -354,11 +370,11 @@ export default function AdminCoursesView({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "ስካን አልተሳካም።");
-      setScanResult(data.message);
+      setScanResult({ ok: true, text: data.message });
       setManualBadge("");
       await fetchCourses(selectedCourseId, activeDate);
     } catch (err) {
-      setScanResult((err as Error).message);
+      setScanResult({ ok: false, text: (err as Error).message });
     }
   };
 
@@ -647,6 +663,53 @@ export default function AdminCoursesView({
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                  መግቢያ የሚከፈተው (ከመጀመሩ በፊት ደቂቃ)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={draft.earlyMinutes}
+                  onChange={(e) =>
+                    setDraft({ ...draft, earlyMinutes: e.target.value })
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                  መዝጊያ / የክፍለ ጊዜው ቆይታ (ከጀመረ በኋላ ደቂቃ)
+                </label>
+                <input
+                  type="number"
+                  min={10}
+                  value={draft.durationMinutes}
+                  onChange={(e) =>
+                    setDraft({ ...draft, durationMinutes: e.target.value })
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl"
+                />
+              </div>
+            </div>
+
+            {(() => {
+              const preview = getCheckInWindowBounds(
+                draft.classTime,
+                Number(draft.earlyMinutes),
+                Number(draft.graceMinutes),
+                Number(draft.durationMinutes)
+              );
+              return (
+                <div className="bg-blue-50 border border-blue-200 text-[11px] text-gibi-navy px-3 py-2 rounded-xl font-semibold">
+                  🔓 QR መግቢያ: <b>{preview.openTimeEth}</b> | ✅ በሰዓቱ እስከ:{" "}
+                  <b>{formatEthiopianTime(`${String(Math.floor(preview.graceEndMin / 60)).padStart(2, "0")}:${String(preview.graceEndMin % 60).padStart(2, "0")}`)}</b>{" "}
+                  | ⛔ ይዘጋል: <b>{preview.closeTimeEth}</b>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex justify-end gap-2">
@@ -830,8 +893,14 @@ export default function AdminCoursesView({
           </div>
 
           {scanResult && (
-            <div className="bg-blue-50 border border-blue-200 text-gibi-navy p-3 rounded-xl text-xs font-bold">
-              {scanResult}
+            <div
+              className={`p-3 rounded-xl text-xs font-bold border ${
+                scanResult.ok
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                  : "bg-red-50 border-red-200 text-red-800"
+              }`}
+            >
+              {scanResult.text}
             </div>
           )}
 

@@ -97,6 +97,8 @@ export async function POST(req: NextRequest) {
       endDate?: string;
       classTime?: string;
       graceMinutes?: number;
+      earlyMinutes?: number;
+      durationMinutes?: number;
       classDays?: number[];
     };
 
@@ -106,6 +108,11 @@ export async function POST(req: NextRequest) {
     const totalDays = Math.max(1, Number(body.totalDays || 14));
     const classTime = (body.classTime || "17:30").trim();
     const graceMinutes = Math.max(0, Number(body.graceMinutes ?? 15));
+    const earlyMinutes = Math.max(0, Number(body.earlyMinutes ?? 60));
+    const durationMinutes = Math.max(
+      graceMinutes + 5,
+      Number(body.durationMinutes ?? 90)
+    );
     const classDays = normalizeClassDays(body.classDays);
 
     if (!title || !startDate || !endDate) {
@@ -130,6 +137,8 @@ export async function POST(req: NextRequest) {
         end_date,
         class_time,
         grace_minutes,
+        early_minutes,
+        duration_minutes,
         class_days,
         enroll_code,
         active_session_code,
@@ -143,6 +152,8 @@ export async function POST(req: NextRequest) {
         ${endDate},
         ${classTime},
         ${graceMinutes},
+        ${earlyMinutes},
+        ${durationMinutes},
         ${JSON.stringify(classDays)}::jsonb,
         ${enrollCode},
         ${sessionCode},
@@ -185,6 +196,8 @@ export async function PATCH(req: NextRequest) {
       endDate?: string;
       classTime?: string;
       graceMinutes?: number;
+      earlyMinutes?: number;
+      durationMinutes?: number;
       classDays?: number[];
     };
 
@@ -207,6 +220,11 @@ export async function PATCH(req: NextRequest) {
       const totalDays = Math.max(1, Number(body.totalDays || 14));
       const classTime = (body.classTime || "17:30").trim();
       const graceMinutes = Math.max(0, Number(body.graceMinutes ?? 15));
+      const earlyMinutes = Math.max(0, Number(body.earlyMinutes ?? 60));
+      const durationMinutes = Math.max(
+        graceMinutes + 5,
+        Number(body.durationMinutes ?? 90)
+      );
       const classDays = normalizeClassDays(body.classDays);
 
       if (!title || !startDate || !endDate) {
@@ -226,6 +244,8 @@ export async function PATCH(req: NextRequest) {
           end_date = ${endDate},
           class_time = ${classTime},
           grace_minutes = ${graceMinutes},
+          early_minutes = ${earlyMinutes},
+          duration_minutes = ${durationMinutes},
           class_days = ${JSON.stringify(classDays)}::jsonb
         WHERE id = ${courseId}
         RETURNING *

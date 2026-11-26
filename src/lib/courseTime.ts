@@ -1,3 +1,5 @@
+import { formatEthiopianTime, toEthiopianDate } from "./ethiopianCalendar";
+
 /**
  * Helpers for Ethiopia Local Time (UTC+3), attendance status, and weekday schedules.
  */
@@ -135,6 +137,164 @@ export function computeAttendanceStatus(
   if (Number.isNaN(h) || Number.isNaN(m)) return "present";
   const deadline = h * 60 + m + (Number(graceMinutes) || 0);
   return minutesSinceMidnight <= deadline ? "present" : "late";
+}
+
+export function minutesToHHMM(totalMinutes: number): string {
+  const clamped = ((Math.round(totalMinutes) % 1440) + 1440) % 1440;
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+export function getCheckInWindowBounds(
+  classTimeHHMM: string,
+  earlyMinutes: number,
+  graceMinutes: number,
+  durationMinutes: number
+) {
+  const [hStr, mStr] = (classTimeHHMM || "17:30").split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  const startMin =
+    !Number.isNaN(h) && !Number.isNaN(m) ? h * 60 + m : 17 * 60 + 30;
+  const early = Math.max(0, Number(earlyMinutes ?? 60));
+  const grace = Math.max(0, Number(graceMinutes ?? 15));
+  const duration = Math.max(grace + 5, Number(durationMinutes ?? 90));
+
+  const openMin = Math.max(0, startMin - early);
+  const graceEndMin = Math.min(1439, startMin + grace);
+  const closeMin = Math.min(1439, startMin + duration);
+
+  return {
+    startMin,
+    openMin,
+    graceEndMin,
+    closeMin,
+    openTimeEth: formatEthiopianTime(minutesToHHMM(openMin)),
+    startTimeEth: formatEthiopianTime(minutesToHHMM(startMin)),
+    closeTimeEth: formatEthiopianTime(minutesToHHMM(closeMin)),
+  };
+}
+
+export interface QrWindowResult {
+  allowed: boolean;
+  status?: "present" | "late";
+  code?:
+    | "INACTIVE"
+    | "NOT_STARTED"
+    | "ENDED"
+    | "FUTURE_DATE"
+    | "WRONG_WEEKDAY"
+    | "TOO_EARLY"
+    | "TOO_LATE";
+  message?: string;
+}
+
+export function evaluateQrCheckInWindow(
+  course: {
+    is_active?: boolean;
+    start_date: string | Date;
+    end_date: string | Date;
+    class_time: string;
+    grace_minutes: number;
+    early_minutes?: number;
+    duration_minutes?: number;
+    class_days?: unknown;
+  },
+  targetDateYmd?: string,
+  nowOverride?: { dateStr: string; minutesSinceMidnight: number }
+): QrWindowResult {
+  const { dateStr: today, minutesSinceMidnight } =
+    nowOverride || getEthiopiaNow();
+  const targetDate = targetDateYmd || today;
+
+  if (course.is_active === false) {
+    return {
+      allowed: false,
+      code: "INACTIVE",
+      message: "⛔ ይህ ኮርስ በአሁኑ ጊዜ ዝግ ነው።",
+    };
+  }
+
+  if (targetDate > today) {
+    return {
+      allowed: false,
+      code: "FUTURE_DATE",
+      message: "📅 ወደፊት ላለ ቀን QR ስካን ማድረግ አይቻልም!",
+    };
+  }
+
+  const startYmd =
+    course.start_date instanceof Date
+      ? course.start_date.toISOString().slice(0, 10)
+      : String(course.start_date).slice(0, 10);
+  const endYmd =
+    course.end_date instanceof Date
+      ? course.end_date.toISOString().slice(0, 10)
+      : String(course.end_date).slice(0, 10);
+
+  if (targetDate < startYmd) {
+    const startEth = toEthiopianDate(startYmd).formatted;
+    const startWeekday = getEthiopianWeekdayName(startYmd);
+    return {
+      allowed: false,
+      code: "NOT_STARTED",
+      message: `📅 ኮርሱ ገና አልተጀመረም! የሚጀምረው ${startEth} (${startWeekday}) ነው።`,
+    };
+  }
+
+  if (targetDate > endYmd) {
+    const endEth = toEthiopianDate(endYmd).formatted;
+    return {
+      allowed: false,
+      code: "ENDED",
+      message: `🏁 ይህ ኮርስ በ${endEth} ተጠናቋል።`,
+    };
+  }
+
+  if (!isScheduledClassDay(targetDate, course.class_days)) {
+    const targetWeekday = getEthiopianWeekdayName(targetDate);
+    const schedule = formatClassDaysLabel(course.class_days);
+    return {
+      allowed: false,
+      code: "WRONG_WEEKDAY",
+      message: `📅 ዛሬ (${targetWeekday}) የኮርሱ የትምህርት ቀን አይደለም! የትምህርት ቀናት፦ ${schedule}`,
+    };
+  }
+
+  // Time window check applies for live (today) QR scans
+  if (targetDate === today) {
+    const bounds = getCheckInWindowBounds(
+      String(course.class_time || "17:30"),
+      Number(course.early_minutes ?? 60),
+      Number(course.grace_minutes ?? 15),
+      Number(course.duration_minutes ?? 90)
+    );
+
+    if (minutesSinceMidnight < bounds.openMin) {
+      return {
+        allowed: false,
+        code: "TOO_EARLY",
+        message: `⏳ ገና ነው! የዛሬው አቴንዳንስ የሚከፈተው ከ${bounds.openTimeEth} ጀምሮ ነው (ትምህርት የሚጀምረው ${bounds.startTimeEth})።`,
+      };
+    }
+
+    if (minutesSinceMidnight > bounds.closeMin) {
+      return {
+        allowed: false,
+        code: "TOO_LATE",
+        message: `⛔ ሰዓቱ አልፎበታል! የዛሬው አቴንዳንስ መቀበያ በ${bounds.closeTimeEth} ተዘግቷል።`,
+      };
+    }
+
+    return {
+      allowed: true,
+      status:
+        minutesSinceMidnight <= bounds.graceEndMin ? "present" : "late",
+    };
+  }
+
+  return { allowed: true, status: "present" };
 }
 
 export function formatTime12h(hhmm: string): string {

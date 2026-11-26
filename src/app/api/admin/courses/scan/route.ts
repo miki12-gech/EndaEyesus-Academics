@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSchema, getSql } from "@/lib/db";
 import { verifyAdminAccess } from "@/lib/telegramAuth";
-import { computeAttendanceStatus, getEthiopiaNow } from "@/lib/courseTime";
+import { evaluateQrCheckInWindow, getEthiopiaNow } from "@/lib/courseTime";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +37,17 @@ export async function POST(req: NextRequest) {
     const sql = getSql();
 
     const courseRows = await sql`
-      SELECT id, title, class_time, grace_minutes
+      SELECT
+        id,
+        title,
+        is_active,
+        start_date,
+        end_date,
+        class_time,
+        grace_minutes,
+        early_minutes,
+        duration_minutes,
+        class_days
       FROM spiritual_courses
       WHERE id = ${courseId}
       LIMIT 1
@@ -45,7 +55,18 @@ export async function POST(req: NextRequest) {
     if (courseRows.length === 0) {
       return NextResponse.json({ error: "ኮርሱ አልተገኘም።" }, { status: 404 });
     }
-    const course = courseRows[0];
+    const course = courseRows[0] as {
+      id: number;
+      title: string;
+      is_active: boolean;
+      start_date: string | Date;
+      end_date: string | Date;
+      class_time: string;
+      grace_minutes: number;
+      early_minutes: number;
+      duration_minutes: number;
+      class_days: unknown;
+    };
 
     const enrollRows = await sql`
       SELECT id, course_id, full_name, phone_number
@@ -74,6 +95,17 @@ export async function POST(req: NextRequest) {
       ? requestedDate
       : today;
 
+    const windowCheck = evaluateQrCheckInWindow(course, targetDate);
+    if (!windowCheck.allowed || !windowCheck.status) {
+      return NextResponse.json(
+        {
+          error: windowCheck.message || "በአሁኑ ሰዓት QR ስካን ማድረግ አይቻልም።",
+          code: windowCheck.code,
+        },
+        { status: 400 }
+      );
+    }
+
     const existing = await sql`
       SELECT status, checked_in_at
       FROM course_attendance
@@ -93,13 +125,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const status =
-      targetDate === today
-        ? computeAttendanceStatus(
-            String(course.class_time),
-            Number(course.grace_minutes)
-          )
-        : "present";
+    const status = windowCheck.status;
 
     await sql`
       INSERT INTO course_attendance (course_id, enrollment_id, session_date, status, method)
