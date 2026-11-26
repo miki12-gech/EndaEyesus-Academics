@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
         c.end_date,
         c.class_time,
         c.grace_minutes,
+        c.class_days,
         c.enroll_code,
         c.is_active,
         (SELECT COUNT(DISTINCT a.session_date)::int FROM course_attendance a WHERE a.course_id = c.id) AS held_days

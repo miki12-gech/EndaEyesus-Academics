@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSchema, getSql } from "@/lib/db";
 import { verifyAdminAccess } from "@/lib/telegramAuth";
-import { toEthiopianDate } from "@/lib/ethiopianCalendar";
+import { toEthiopianDate, formatEthiopianTime } from "@/lib/ethiopianCalendar";
+import { formatClassDaysLabel } from "@/lib/courseTime";
 
 export const dynamic = "force-dynamic";
 
@@ -194,7 +195,7 @@ export async function GET(req: NextRequest) {
     <div class="header">
       <div>
         <h1>እንዳ ኢየሱስ ግቢ ጉባኤ — ${esc(course.title)}</h1>
-        <p>የመንፈሳዊ ኮርስ ክትትል (Attendance) ሪፖርት • ከ${startStr} እስከ ${endStr} (${course.total_days} ቀናት)</p>
+        <p>የመንፈሳዊ ኮርስ ክትትል ሪፖርት • ከ${startStr} እስከ ${endStr} (${course.total_days} ቀናት) • ${esc(formatClassDaysLabel(course.class_days))} • ${esc(formatEthiopianTime(String(course.class_time)))}</p>
       </div>
       <div class="meta">
         <div><strong>ቀን:</strong> ${today}</div>

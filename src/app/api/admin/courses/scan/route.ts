@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as {
       courseId?: number;
       qrText?: string;
+      sessionDate?: string;
     };
 
     const courseId = Number(body.courseId);
@@ -68,13 +69,17 @@ export async function POST(req: NextRequest) {
     }
 
     const { dateStr: today } = getEthiopiaNow();
+    const requestedDate = (body.sessionDate || "").trim();
+    const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+      ? requestedDate
+      : today;
 
     const existing = await sql`
       SELECT status, checked_in_at
       FROM course_attendance
       WHERE course_id = ${courseId}
         AND enrollment_id = ${enrollment.id}
-        AND session_date = ${today}
+        AND session_date = ${targetDate}
       LIMIT 1
     `;
 
@@ -84,18 +89,21 @@ export async function POST(req: NextRequest) {
         alreadyCheckedIn: true,
         studentName: enrollment.full_name,
         status: existing[0].status,
-        message: `ℹ️ ${enrollment.full_name} ዛሬ ቀድሞ ተመዝግቧል (${existing[0].status === "present" ? "በሰዓቱ" : "ዘግይቷል"})።`,
+        message: `ℹ️ ${enrollment.full_name} ቀድሞ ተመዝግቧል (${existing[0].status === "present" ? "በሰዓቱ" : "ዘግይቷል"})።`,
       });
     }
 
-    const status = computeAttendanceStatus(
-      String(course.class_time),
-      Number(course.grace_minutes)
-    );
+    const status =
+      targetDate === today
+        ? computeAttendanceStatus(
+            String(course.class_time),
+            Number(course.grace_minutes)
+          )
+        : "present";
 
     await sql`
       INSERT INTO course_attendance (course_id, enrollment_id, session_date, status, method)
-      VALUES (${courseId}, ${enrollment.id}, ${today}, ${status}, 'usher_scan')
+      VALUES (${courseId}, ${enrollment.id}, ${targetDate}, ${status}, 'usher_scan')
     `;
 
     return NextResponse.json({

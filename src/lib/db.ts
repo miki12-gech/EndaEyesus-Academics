@@ -77,12 +77,18 @@ export async function ensureSchema(): Promise<void> {
           end_date DATE NOT NULL,
           class_time TEXT NOT NULL DEFAULT '17:30',
           grace_minutes INTEGER NOT NULL DEFAULT 15,
+          class_days JSONB NOT NULL DEFAULT '[0,1,2,3,4,5,6]'::jsonb,
           enroll_code TEXT UNIQUE NOT NULL,
           active_session_code TEXT,
           active_session_date DATE,
           is_active BOOLEAN NOT NULL DEFAULT TRUE,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
+      `;
+
+      await sql`
+        ALTER TABLE spiritual_courses
+        ADD COLUMN IF NOT EXISTS class_days JSONB NOT NULL DEFAULT '[0,1,2,3,4,5,6]'::jsonb
       `;
 
       await sql`

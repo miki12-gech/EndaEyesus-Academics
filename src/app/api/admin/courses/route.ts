@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { ensureSchema, getSql } from "@/lib/db";
 import { verifyAdminAccess } from "@/lib/telegramAuth";
-import { getEthiopiaNow } from "@/lib/courseTime";
+import { getEthiopiaNow, normalizeClassDays } from "@/lib/courseTime";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +18,10 @@ export async function GET(req: NextRequest) {
     const { dateStr: today } = getEthiopiaNow();
     const url = new URL(req.url);
     const courseIdParam = url.searchParams.get("courseId");
+    const sessionDateParam = (url.searchParams.get("sessionDate") || "").trim();
+    const sessionDate = /^\d{4}-\d{2}-\d{2}$/.test(sessionDateParam)
+      ? sessionDateParam
+      : today;
 
     const courses = await sql`
       SELECT
@@ -52,8 +56,8 @@ export async function GET(req: NextRequest) {
             e.enrolled_at,
             (SELECT COUNT(*)::int FROM course_attendance a WHERE a.enrollment_id = e.id AND a.status = 'present') AS present_count,
             (SELECT COUNT(*)::int FROM course_attendance a WHERE a.enrollment_id = e.id AND a.status = 'late') AS late_count,
-            (SELECT a.status FROM course_attendance a WHERE a.enrollment_id = e.id AND a.session_date = ${today} LIMIT 1) AS today_status,
-            (SELECT a.checked_in_at FROM course_attendance a WHERE a.enrollment_id = e.id AND a.session_date = ${today} LIMIT 1) AS today_checked_in_at
+            (SELECT a.status FROM course_attendance a WHERE a.enrollment_id = e.id AND a.session_date = ${sessionDate} LIMIT 1) AS today_status,
+            (SELECT a.checked_in_at FROM course_attendance a WHERE a.enrollment_id = e.id AND a.session_date = ${sessionDate} LIMIT 1) AS today_checked_in_at
           FROM course_enrollments e
           WHERE e.course_id = ${cid}
           ORDER BY e.full_name ASC
@@ -64,6 +68,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       today,
+      sessionDate,
       courses,
       roster,
       heldDaysCount,
@@ -92,6 +97,7 @@ export async function POST(req: NextRequest) {
       endDate?: string;
       classTime?: string;
       graceMinutes?: number;
+      classDays?: number[];
     };
 
     const title = (body.title || "").trim();
@@ -100,6 +106,7 @@ export async function POST(req: NextRequest) {
     const totalDays = Math.max(1, Number(body.totalDays || 14));
     const classTime = (body.classTime || "17:30").trim();
     const graceMinutes = Math.max(0, Number(body.graceMinutes ?? 15));
+    const classDays = normalizeClassDays(body.classDays);
 
     if (!title || !startDate || !endDate) {
       return NextResponse.json(
@@ -123,6 +130,7 @@ export async function POST(req: NextRequest) {
         end_date,
         class_time,
         grace_minutes,
+        class_days,
         enroll_code,
         active_session_code,
         active_session_date
@@ -135,6 +143,7 @@ export async function POST(req: NextRequest) {
         ${endDate},
         ${classTime},
         ${graceMinutes},
+        ${JSON.stringify(classDays)}::jsonb,
         ${enrollCode},
         ${sessionCode},
         ${today}
@@ -161,10 +170,22 @@ export async function PATCH(req: NextRequest) {
 
     const body = (await req.json()) as {
       courseId?: number;
-      action?: "rotate_session" | "toggle_active" | "manual_attendance";
+      action?:
+        | "rotate_session"
+        | "toggle_active"
+        | "manual_attendance"
+        | "update_course";
       enrollmentId?: number;
       status?: "present" | "late" | "absent";
       sessionDate?: string;
+      title?: string;
+      description?: string;
+      totalDays?: number;
+      startDate?: string;
+      endDate?: string;
+      classTime?: string;
+      graceMinutes?: number;
+      classDays?: number[];
     };
 
     const courseId = Number(body.courseId);
@@ -178,6 +199,39 @@ export async function PATCH(req: NextRequest) {
     await ensureSchema();
     const sql = getSql();
     const { dateStr: today } = getEthiopiaNow();
+
+    if (body.action === "update_course") {
+      const title = (body.title || "").trim();
+      const startDate = (body.startDate || "").trim();
+      const endDate = (body.endDate || "").trim();
+      const totalDays = Math.max(1, Number(body.totalDays || 14));
+      const classTime = (body.classTime || "17:30").trim();
+      const graceMinutes = Math.max(0, Number(body.graceMinutes ?? 15));
+      const classDays = normalizeClassDays(body.classDays);
+
+      if (!title || !startDate || !endDate) {
+        return NextResponse.json(
+          { error: "እባክዎ የኮርሱን ስም፣ መጀመሪያ እና መጨረሻ ቀን ያስገቡ።" },
+          { status: 400 }
+        );
+      }
+
+      const updated = await sql`
+        UPDATE spiritual_courses
+        SET
+          title = ${title},
+          description = ${(body.description || "").trim() || null},
+          total_days = ${totalDays},
+          start_date = ${startDate},
+          end_date = ${endDate},
+          class_time = ${classTime},
+          grace_minutes = ${graceMinutes},
+          class_days = ${JSON.stringify(classDays)}::jsonb
+        WHERE id = ${courseId}
+        RETURNING *
+      `;
+      return NextResponse.json({ ok: true, course: updated[0] });
+    }
 
     if (body.action === "rotate_session") {
       const newCode = crypto.randomBytes(4).toString("hex").toUpperCase();

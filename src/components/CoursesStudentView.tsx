@@ -17,6 +17,11 @@ import {
   formatEthiopianTime,
   toEthiopianDate,
 } from "@/lib/ethiopianCalendar";
+import {
+  formatClassDaysLabel,
+  getEthiopianWeekdayName,
+  isScheduledClassDay,
+} from "@/lib/courseTime";
 
 interface SpiritualCourse {
   id: number;
@@ -27,6 +32,7 @@ interface SpiritualCourse {
   end_date: string;
   class_time: string;
   grace_minutes: number;
+  class_days?: number[];
   enroll_code: string;
   held_days: number;
 }
@@ -294,7 +300,16 @@ export default function CoursesStudentView({
                     <Clock className="w-3.5 h-3.5 text-amber-600" />
                     {formatEthiopianTime(c.class_time)} (+{c.grace_minutes} ደቂቃ)
                   </span>
+                  <span className="font-semibold text-gibi-blue">
+                    📆 {formatClassDaysLabel(c.class_days)}
+                  </span>
                 </div>
+
+                {today && !isScheduledClassDay(today, c.class_days) && (
+                  <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                    ℹ️ ዛሬ ({getEthiopianWeekdayName(today)}) መደበኛ የኮርሱ ቀን አይደለም።
+                  </p>
+                )}
 
                 {enrollment ? (
                   <div className="space-y-3">
