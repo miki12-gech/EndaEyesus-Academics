@@ -10,7 +10,7 @@ import {
   HeartHandshake,
   Lock,
   ShieldCheck,
-  Sparkles,
+  User,
   UserCheck,
 } from "lucide-react";
 import {
@@ -26,6 +26,7 @@ import {
 } from "@/lib/constants";
 import AdminView from "@/components/AdminView";
 import CoursesStudentView from "@/components/CoursesStudentView";
+import StudentProfileView from "@/components/StudentProfileView";
 
 declare global {
   interface Window {
@@ -81,6 +82,9 @@ export default function AcademicMiniAppPage() {
   const [highlightCourseCode, setHighlightCourseCode] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [telegramUsername, setTelegramUsername] = useState("");
+  const [profileUpdatedAt, setProfileUpdatedAt] = useState("");
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [form, setForm] = useState<AcademicProfilePayload>(INITIAL_FORM);
@@ -133,6 +137,9 @@ export default function AcademicMiniAppPage() {
         if (data.profile) {
           const p = data.profile as AcademicProfileRow;
           setAlreadySubmitted(true);
+          setIsEditingProfile(false);
+          setTelegramUsername(p.telegram_username || "");
+          setProfileUpdatedAt(p.updated_at || "");
           setForm({
             fullName: p.full_name || "",
             phoneNumber: p.phone_number || "",
@@ -274,6 +281,8 @@ export default function AcademicMiniAppPage() {
       }
 
       setAlreadySubmitted(true);
+      setIsEditingProfile(false);
+      setProfileUpdatedAt(new Date().toISOString());
       setSuccessMsg(
         data.message || "መረጃዎ በተሳካ ሁኔታ ተመዝግቧል! እግዚአብሔር ትምህርትዎን ይባርክ።"
       );
@@ -326,8 +335,17 @@ export default function AcademicMiniAppPage() {
               : "text-slate-600 hover:bg-slate-50"
           }`}
         >
-          <GraduationCap className="w-4 h-4 shrink-0" />
-          <span>የአካዳሚክ ፎርም</span>
+          {alreadySubmitted ? (
+            <>
+              <User className="w-4 h-4 shrink-0" />
+              <span>ፕሮፋይሌ</span>
+            </>
+          ) : (
+            <>
+              <GraduationCap className="w-4 h-4 shrink-0" />
+              <span>መመዝገቢያ</span>
+            </>
+          )}
         </button>
 
         <button
@@ -391,19 +409,60 @@ export default function AcademicMiniAppPage() {
               የExit Exam ወይም የምክር ድጋፍ ያመቻቻል።
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSuccessMsg(null);
-              setStep(1);
-            }}
-            className="w-full py-3 rounded-2xl bg-gibi-navy text-white font-bold text-sm hover:bg-gibi-blue transition"
-          >
-            ✏️ መረጃዬን መልሼ ለማስተካከል (Edit Profile)
-          </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setSuccessMsg(null);
+                setIsEditingProfile(false);
+              }}
+              className="w-full py-3 rounded-2xl bg-gibi-navy text-white font-bold text-sm hover:bg-gibi-blue transition"
+            >
+              👤 ፕሮፋይሌን እይ (View Profile)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSuccessMsg(null);
+                setIsEditingProfile(true);
+                setStep(1);
+              }}
+              className="w-full py-3 rounded-2xl bg-slate-100 text-gibi-navy font-bold text-sm hover:bg-slate-200 transition"
+            >
+              ✏️ መልሼ ለማስተካከል
+            </button>
+          </div>
         </div>
+      ) : alreadySubmitted && !isEditingProfile ? (
+        <StudentProfileView
+          profile={form}
+          telegramUsername={telegramUsername}
+          updatedAt={profileUpdatedAt}
+          onEdit={() => {
+            setStep(1);
+            setIsEditingProfile(true);
+          }}
+          onOpenCourses={() => setActiveTab("courses")}
+        />
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
+          {alreadySubmitted && isEditingProfile && (
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-200 px-3.5 py-2.5 rounded-2xl">
+              <span className="text-xs font-bold text-gibi-navy">
+                ✏️ መረጃዎን በማስተካከል ላይ ነዎት
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingProfile(false);
+                  setErrorMsg(null);
+                }}
+                className="text-xs font-bold text-gibi-blue hover:underline"
+              >
+                ← ወደ ፕሮፋይሌ ተመለስ
+              </button>
+            </div>
+          )}
           {/* Progress Stepper */}
           <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm">
             <div className="grid grid-cols-3 gap-2 text-center">
