@@ -9,7 +9,6 @@ import {
   QrCode,
   RefreshCw,
   ScanLine,
-  Sparkles,
   XCircle,
 } from "lucide-react";
 import QrCodeImage from "@/components/QrCodeImage";
@@ -341,21 +340,49 @@ export default function CoursesStudentView({
                     {/* Today's Status */}
                     <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-3">
                       <div className="text-xs">
-                        <span className="text-slate-500">
-                          የዛሬ ({toEthiopianDate(today).formatted}) ሁኔታ፦{" "}
-                        </span>
-                        {enrollment.today_status === "present" ? (
-                          <span className="font-bold text-emerald-700">
-                            ✅ በሰዓቱ ተገኝተዋል (Present)
-                          </span>
-                        ) : enrollment.today_status === "late" ? (
-                          <span className="font-bold text-amber-700">
-                            ⏰ ዘግይተው ተመዝግበዋል (Late)
-                          </span>
+                        {today && today < startStr ? (
+                          <>
+                            <span className="text-slate-500">የኮርሱ ሁኔታ፦ </span>
+                            <span className="font-bold text-amber-800">
+                              ገና አልተጀመረም ({toEthiopianDate(startStr).formatted}{" "}
+                              ይጀምራል)
+                            </span>
+                          </>
+                        ) : today && today > endStr ? (
+                          <>
+                            <span className="text-slate-500">የኮርሱ ሁኔታ፦ </span>
+                            <span className="font-bold text-slate-700">
+                              ተጠናቋል
+                            </span>
+                          </>
+                        ) : today && !isScheduledClassDay(today, c.class_days) ? (
+                          <>
+                            <span className="text-slate-500">
+                              የዛሬ ({toEthiopianDate(today).formatted}) ሁኔታ፦{" "}
+                            </span>
+                            <span className="font-bold text-slate-600">
+                              ዛሬ የትምህርት ቀን አይደለም
+                            </span>
+                          </>
                         ) : (
-                          <span className="font-bold text-slate-600">
-                            ⏳ ገና አልተመዘገበም
-                          </span>
+                          <>
+                            <span className="text-slate-500">
+                              የዛሬ ({toEthiopianDate(today).formatted}) ሁኔታ፦{" "}
+                            </span>
+                            {enrollment.today_status === "present" ? (
+                              <span className="font-bold text-emerald-700">
+                                ✅ በሰዓቱ ተገኝተዋል (Present)
+                              </span>
+                            ) : enrollment.today_status === "late" ? (
+                              <span className="font-bold text-amber-700">
+                                ⏰ ዘግይተው ተመዝግበዋል (Late)
+                              </span>
+                            ) : (
+                              <span className="font-bold text-slate-600">
+                                ⏳ ገና አልተመዘገበም
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
 
@@ -374,8 +401,7 @@ export default function CoursesStudentView({
                     {/* Personal QR Badge */}
                     {showBadge && (
                       <div className="bg-gradient-to-br from-gibi-navy to-blue-900 text-white rounded-2xl p-4 flex flex-col items-center text-center space-y-2">
-                        <p className="text-xs font-bold text-amber-200 flex items-center gap-1">
-                          <Sparkles className="w-3.5 h-3.5" />
+                        <p className="text-xs font-bold text-amber-200">
                           የግል የአቴንዳንስ መታወቂያ (Personal QR Badge)
                         </p>
                         <QrCodeImage
@@ -456,7 +482,7 @@ export default function CoursesStudentView({
                     >
                       {enrollingCourseId === c.id
                         ? "በመመዝገብ ላይ..."
-                        : "✨ በዚህ ኮርስ ተመዝገብ (Enroll & Get QR)"}
+                        : "በዚህ ኮርስ ተመዝገብ (Enroll & Get QR)"}
                     </button>
                   </div>
                 )}

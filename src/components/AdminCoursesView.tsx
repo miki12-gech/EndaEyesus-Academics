@@ -220,6 +220,9 @@ export default function AdminCoursesView({
   } | null>(null);
   const [manualBadge, setManualBadge] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [updatingEnrollmentId, setUpdatingEnrollmentId] = useState<
+    number | null
+  >(null);
 
   const fetchCourses = async (
     cid: number | null = selectedCourseId,
@@ -415,18 +418,29 @@ export default function AdminCoursesView({
     status: "present" | "late" | "absent"
   ) => {
     if (!selectedCourseId) return;
-    await fetch("/api/admin/courses", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...authHeaders },
-      body: JSON.stringify({
-        courseId: selectedCourseId,
-        action: "manual_attendance",
-        enrollmentId,
-        status,
-        sessionDate: activeDate,
-      }),
-    });
-    await fetchCourses(selectedCourseId, activeDate);
+    setUpdatingEnrollmentId(enrollmentId);
+    try {
+      const res = await fetch("/api/admin/courses", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({
+          courseId: selectedCourseId,
+          action: "manual_attendance",
+          enrollmentId,
+          status,
+          sessionDate: activeDate,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || "ማስተካከል አልተቻለም።");
+      }
+      await fetchCourses(selectedCourseId, activeDate);
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setUpdatingEnrollmentId(null);
+    }
   };
 
   const handleDeleteCourse = async (courseId: number) => {
@@ -1072,13 +1086,14 @@ export default function AdminCoursesView({
                         {absent} • <b>{pct}%</b>
                       </p>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       <button
                         type="button"
+                        disabled={updatingEnrollmentId === r.enrollment_id}
                         onClick={() =>
                           handleManualStatus(r.enrollment_id, "present")
                         }
-                        className={`px-2 py-1 rounded-lg text-[10px] font-bold inline-flex items-center gap-0.5 ${
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold inline-flex items-center gap-0.5 disabled:opacity-50 ${
                           r.today_status === "present"
                             ? "bg-emerald-600 text-white"
                             : "bg-white border border-slate-200 text-slate-600"
@@ -1088,10 +1103,11 @@ export default function AdminCoursesView({
                       </button>
                       <button
                         type="button"
+                        disabled={updatingEnrollmentId === r.enrollment_id}
                         onClick={() =>
                           handleManualStatus(r.enrollment_id, "late")
                         }
-                        className={`px-2 py-1 rounded-lg text-[10px] font-bold inline-flex items-center gap-0.5 ${
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold inline-flex items-center gap-0.5 disabled:opacity-50 ${
                           r.today_status === "late"
                             ? "bg-amber-500 text-white"
                             : "bg-white border border-slate-200 text-slate-600"
@@ -1099,19 +1115,35 @@ export default function AdminCoursesView({
                       >
                         <Clock className="w-3 h-3" /> ዘግይቷል
                       </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleManualStatus(r.enrollment_id, "absent")
-                        }
-                        className={`px-2 py-1 rounded-lg text-[10px] font-bold inline-flex items-center gap-0.5 ${
-                          !r.today_status
-                            ? "bg-red-100 text-red-700 border border-red-200"
-                            : "bg-white border border-slate-200 text-slate-600"
-                        }`}
-                      >
-                        <XCircle className="w-3 h-3" /> ቀርቷል
-                      </button>
+                      {r.today_status ? (
+                        <button
+                          type="button"
+                          disabled={updatingEnrollmentId === r.enrollment_id}
+                          onClick={() =>
+                            handleManualStatus(r.enrollment_id, "absent")
+                          }
+                          title="የተመዘገበውን አቴንዳንስ አጥፋ (እንዳልተመዘገበ አድርግ)"
+                          className="px-2 py-1 rounded-lg text-[10px] font-bold inline-flex items-center gap-0.5 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3 h-3" /> አጥፋ
+                        </button>
+                      ) : (
+                        <span
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold inline-flex items-center gap-0.5 ${
+                            isSelectedDateScheduled &&
+                            activeDate >=
+                              String(selectedCourse.start_date).slice(0, 10)
+                              ? "bg-red-100 text-red-700 border border-red-200"
+                              : "bg-slate-100 text-slate-500 border border-slate-200"
+                          }`}
+                        >
+                          <XCircle className="w-3 h-3" />{" "}
+                          {activeDate <
+                          String(selectedCourse.start_date).slice(0, 10)
+                            ? "ገና አልተጀመረም"
+                            : "ቀርቷል / አልተመዘገበም"}
+                        </span>
+                      )}
                     </div>
                   </div>
                 );

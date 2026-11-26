@@ -45,7 +45,15 @@ export async function GET(req: NextRequest) {
     const sql = getSql();
 
     const courseRows = await sql`
-      SELECT * FROM spiritual_courses WHERE id = ${courseId} LIMIT 1
+      SELECT
+        id,
+        title,
+        total_days,
+        TO_CHAR(start_date, 'YYYY-MM-DD') AS start_date,
+        TO_CHAR(end_date, 'YYYY-MM-DD') AS end_date,
+        class_time,
+        class_days
+      FROM spiritual_courses WHERE id = ${courseId} LIMIT 1
     `;
     if (courseRows.length === 0) {
       return NextResponse.json({ error: "Course not found." }, { status: 404 });

@@ -25,7 +25,22 @@ export async function GET(req: NextRequest) {
 
     const courses = await sql`
       SELECT
-        c.*,
+        c.id,
+        c.title,
+        c.description,
+        c.total_days,
+        TO_CHAR(c.start_date, 'YYYY-MM-DD') AS start_date,
+        TO_CHAR(c.end_date, 'YYYY-MM-DD') AS end_date,
+        c.class_time,
+        c.grace_minutes,
+        c.early_minutes,
+        c.duration_minutes,
+        c.class_days,
+        c.enroll_code,
+        c.active_session_code,
+        TO_CHAR(c.active_session_date, 'YYYY-MM-DD') AS active_session_date,
+        c.is_active,
+        c.created_at,
         (SELECT COUNT(*)::int FROM course_enrollments e WHERE e.course_id = c.id) AS enrolled_count,
         (SELECT COUNT(*)::int FROM course_attendance a WHERE a.course_id = c.id AND a.session_date = ${today} AND a.status = 'present') AS today_present,
         (SELECT COUNT(*)::int FROM course_attendance a WHERE a.course_id = c.id AND a.session_date = ${today} AND a.status = 'late') AS today_late

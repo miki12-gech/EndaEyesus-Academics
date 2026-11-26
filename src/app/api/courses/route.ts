@@ -42,8 +42,8 @@ export async function GET(req: NextRequest) {
         c.title,
         c.description,
         c.total_days,
-        c.start_date,
-        c.end_date,
+        TO_CHAR(c.start_date, 'YYYY-MM-DD') AS start_date,
+        TO_CHAR(c.end_date, 'YYYY-MM-DD') AS end_date,
         c.class_time,
         c.grace_minutes,
         c.early_minutes,
@@ -208,7 +208,19 @@ export async function POST(req: NextRequest) {
       }
 
       const courseRows = await sql`
-        SELECT * FROM spiritual_courses WHERE id = ${courseId} LIMIT 1
+        SELECT
+          id,
+          is_active,
+          TO_CHAR(start_date, 'YYYY-MM-DD') AS start_date,
+          TO_CHAR(end_date, 'YYYY-MM-DD') AS end_date,
+          class_time,
+          grace_minutes,
+          early_minutes,
+          duration_minutes,
+          class_days,
+          active_session_code,
+          TO_CHAR(active_session_date, 'YYYY-MM-DD') AS active_session_date
+        FROM spiritual_courses WHERE id = ${courseId} LIMIT 1
       `;
       if (courseRows.length === 0) {
         return NextResponse.json({ error: "ኮርሱ አልተገኘም።" }, { status: 404 });
