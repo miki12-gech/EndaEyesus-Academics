@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureSchema, getSql } from "@/lib/db";
 import { verifyAdminAccess } from "@/lib/telegramAuth";
 import { evaluateQrCheckInWindow, getEthiopiaNow } from "@/lib/courseTime";
+import { notifyStudentCheckIn } from "@/lib/telegramNotify";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
     };
 
     const enrollRows = await sql`
-      SELECT id, course_id, full_name, phone_number
+      SELECT id, course_id, telegram_id, full_name, phone_number
       FROM course_enrollments
       WHERE badge_token = ${badgeToken}
       LIMIT 1
@@ -131,6 +132,14 @@ export async function POST(req: NextRequest) {
       INSERT INTO course_attendance (course_id, enrollment_id, session_date, status, method)
       VALUES (${courseId}, ${enrollment.id}, ${targetDate}, ${status}, 'usher_scan')
     `;
+
+    await notifyStudentCheckIn({
+      telegramId: enrollment.telegram_id ? String(enrollment.telegram_id) : null,
+      studentName: String(enrollment.full_name),
+      courseTitle: course.title,
+      sessionDateYmd: targetDate,
+      status,
+    });
 
     return NextResponse.json({
       ok: true,

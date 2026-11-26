@@ -22,6 +22,7 @@ import {
   getEthiopianWeekdayName,
   isScheduledClassDay,
 } from "@/lib/courseTime";
+import { playScanFeedback } from "@/lib/scanSound";
 
 interface SpiritualCourse {
   id: number;
@@ -179,9 +180,11 @@ export default function CoursesStudentView({
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Check-in አልተሳካም።");
+            playScanFeedback(data.status === "late" ? "late" : "present");
             setBannerMsg(data.message);
             await fetchCourses();
           } catch (err) {
+            playScanFeedback("error");
             setError((err as Error).message);
           }
         })();

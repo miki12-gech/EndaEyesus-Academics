@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureSchema, getSql } from "@/lib/db";
 import { verifyTelegramInitData } from "@/lib/telegramAuth";
 import { evaluateQrCheckInWindow, getEthiopiaNow } from "@/lib/courseTime";
+import { notifyStudentCheckIn } from "@/lib/telegramNotify";
 
 export const dynamic = "force-dynamic";
 
@@ -210,6 +211,7 @@ export async function POST(req: NextRequest) {
       const courseRows = await sql`
         SELECT
           id,
+          title,
           is_active,
           TO_CHAR(start_date, 'YYYY-MM-DD') AS start_date,
           TO_CHAR(end_date, 'YYYY-MM-DD') AS end_date,
@@ -227,6 +229,7 @@ export async function POST(req: NextRequest) {
       }
       const course = courseRows[0] as {
         id: number;
+        title: string;
         is_active: boolean;
         start_date: string | Date;
         end_date: string | Date;
@@ -301,6 +304,14 @@ export async function POST(req: NextRequest) {
         INSERT INTO course_attendance (course_id, enrollment_id, session_date, status, method)
         VALUES (${courseId}, ${enrollment.id}, ${today}, ${status}, 'self_scan')
       `;
+
+      await notifyStudentCheckIn({
+        telegramId,
+        studentName: String(enrollment.full_name),
+        courseTitle: course.title,
+        sessionDateYmd: today,
+        status,
+      });
 
       return NextResponse.json({
         ok: true,

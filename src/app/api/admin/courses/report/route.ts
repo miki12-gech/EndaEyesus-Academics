@@ -3,6 +3,11 @@ import { ensureSchema, getSql } from "@/lib/db";
 import { verifyAdminAccess } from "@/lib/telegramAuth";
 import { toEthiopianDate, formatEthiopianTime } from "@/lib/ethiopianCalendar";
 import { formatClassDaysLabel } from "@/lib/courseTime";
+import {
+  CourseSortOption,
+  computeAttendanceMetrics,
+  sortCourseRoster,
+} from "@/lib/courseSort";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +38,7 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const courseId = Number(url.searchParams.get("courseId"));
     const format = url.searchParams.get("format") || "report";
+    const sortParam = (url.searchParams.get("sort") || "name") as CourseSortOption;
 
     if (!courseId) {
       return NextResponse.json(
@@ -67,7 +73,7 @@ export async function GET(req: NextRequest) {
     `;
     const heldDays = Number(distinctDays[0]?.cnt || 0);
 
-    const roster = await sql`
+    const rawRoster = (await sql`
       SELECT
         e.id,
         e.full_name,
@@ -78,7 +84,16 @@ export async function GET(req: NextRequest) {
       FROM course_enrollments e
       WHERE e.course_id = ${courseId}
       ORDER BY e.full_name ASC
-    `;
+    `) as unknown as Array<{
+      id: number;
+      full_name: string;
+      phone_number: string;
+      telegram_username: string | null;
+      present_count: number;
+      late_count: number;
+    }>;
+
+    const roster = sortCourseRoster(rawRoster, heldDays, sortParam);
 
     if (format === "csv") {
       const headers = [
@@ -94,11 +109,10 @@ export async function GET(req: NextRequest) {
       ];
       const lines = [headers.map(csvEscape).join(",")];
       roster.forEach((r, idx) => {
-        const present = Number(r.present_count || 0);
-        const late = Number(r.late_count || 0);
-        const attended = present + late;
-        const absent = Math.max(0, heldDays - attended);
-        const pct = heldDays > 0 ? Math.round((attended / heldDays) * 100) : 100;
+        const { present, late, absent, pct } = computeAttendanceMetrics(
+          r,
+          heldDays
+        );
         lines.push(
           [
             idx + 1,
@@ -136,13 +150,13 @@ export async function GET(req: NextRequest) {
 
     const rowsHtml = roster
       .map((r, idx) => {
-        const present = Number(r.present_count || 0);
-        const late = Number(r.late_count || 0);
-        const attended = present + late;
-        const absent = Math.max(0, heldDays - attended);
-        const pct = heldDays > 0 ? Math.round((attended / heldDays) * 100) : 100;
+        const { present, late, absent, pct } = computeAttendanceMetrics(
+          r,
+          heldDays
+        );
+        const flagRow = absent >= 2 || (heldDays >= 3 && pct < 75);
         return `
-        <tr>
+        <tr${flagRow ? ' style="background:#fff1f2;"' : ""}>
           <td class="center">${idx + 1}</td>
           <td class="bold">${esc(r.full_name)}</td>
           <td>${esc(r.phone_number)}</td>

@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import {
+  ArrowUpDown,
+  Bell,
   BookOpen,
   Calendar,
   CheckCircle2,
@@ -13,6 +15,7 @@ import {
   QrCode,
   RefreshCw,
   ScanLine,
+  Send,
   Sparkles,
   Trash2,
   Users,
@@ -36,6 +39,12 @@ import {
   normalizeClassDays,
   shiftYmd,
 } from "@/lib/courseTime";
+import { playScanFeedback } from "@/lib/scanSound";
+import {
+  CourseSortOption,
+  computeAttendanceMetrics,
+  sortCourseRoster,
+} from "@/lib/courseSort";
 
 interface CourseRow {
   id: number;
@@ -213,7 +222,9 @@ export default function AdminCoursesView({
   const [draft, setDraft] = useState<CourseDraft>(makeInitialDraft);
   const [savingCourse, setSavingCourse] = useState(false);
 
-  const [qrPanel, setQrPanel] = useState<"none" | "enroll" | "session">("none");
+  const [qrPanel, setQrPanel] = useState<
+    "none" | "enroll" | "session" | "notify"
+  >("none");
   const [scanResult, setScanResult] = useState<{
     ok: boolean;
     text: string;
@@ -223,6 +234,13 @@ export default function AdminCoursesView({
   const [updatingEnrollmentId, setUpdatingEnrollmentId] = useState<
     number | null
   >(null);
+  const [sortBy, setSortBy] = useState<CourseSortOption>("name");
+  const [notifyAudience, setNotifyAudience] = useState<
+    "all" | "absent_today" | "high_absent"
+  >("all");
+  const [notifyCustomMessage, setNotifyCustomMessage] = useState("");
+  const [sendingNotify, setSendingNotify] = useState(false);
+  const [notifyResult, setNotifyResult] = useState<string | null>(null);
 
   const fetchCourses = async (
     cid: number | null = selectedCourseId,
@@ -373,10 +391,12 @@ export default function AdminCoursesView({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "ስካን አልተሳካም።");
+      playScanFeedback(data.status === "late" ? "late" : "present");
       setScanResult({ ok: true, text: data.message });
       setManualBadge("");
       await fetchCourses(selectedCourseId, activeDate);
     } catch (err) {
+      playScanFeedback("error");
       setScanResult({ ok: false, text: (err as Error).message });
     }
   };
@@ -454,10 +474,36 @@ export default function AdminCoursesView({
     await fetchCourses(null);
   };
 
+  const handleSendCourseNotify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCourseId) return;
+    setSendingNotify(true);
+    setNotifyResult(null);
+    try {
+      const res = await fetch("/api/admin/courses/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({
+          courseId: selectedCourseId,
+          audience: notifyAudience,
+          customMessage: notifyCustomMessage,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "መልእክት መላክ አልተቻለም።");
+      setNotifyResult(data.message);
+      setNotifyCustomMessage("");
+    } catch (err) {
+      setNotifyResult(`❌ ${(err as Error).message}`);
+    } finally {
+      setSendingNotify(false);
+    }
+  };
+
   const openCourseExport = (courseId: number, format: "report" | "csv") => {
     const baseQ = buildAuthQuery();
     const sep = baseQ ? "&" : "?";
-    const url = `${window.location.origin}/api/admin/courses/report${baseQ}${sep}courseId=${courseId}&format=${format}`;
+    const url = `${window.location.origin}/api/admin/courses/report${baseQ}${sep}courseId=${courseId}&format=${format}&sort=${encodeURIComponent(sortBy)}`;
     const tg = (
       window as unknown as {
         Telegram?: { WebApp?: { openLink?: (u: string) => void } };
@@ -881,6 +927,17 @@ export default function AdminCoursesView({
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  setNotifyResult(null);
+                  setQrPanel(qrPanel === "notify" ? "none" : "notify");
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 text-indigo-800 border border-indigo-200 text-xs font-bold hover:bg-indigo-100"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                ኖቲፊኬሽን
+              </button>
+              <button
+                type="button"
                 onClick={() => openCourseExport(selectedCourse.id, "report")}
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gibi-navy text-white text-xs font-bold"
               >
@@ -957,6 +1014,73 @@ export default function AdminCoursesView({
                 ተማሪዎች ከስልካቸው &quot;Scan Class QR&quot; ብለው ይህን ሲቃኙ በሰዓቱ/ዘግይቷል ብሎ ይመዘግባቸዋል።
               </p>
             </div>
+          )}
+
+          {qrPanel === "notify" && (
+            <form
+              onSubmit={handleSendCourseNotify}
+              className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-4 space-y-3"
+            >
+              <div>
+                <h5 className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                  <Bell className="w-4 h-4 text-indigo-700" />
+                  በTelegram Bot ኖቲፊኬሽን መላኪያ
+                </h5>
+                <p className="text-[11px] text-indigo-800 mt-0.5">
+                  ለተማሪዎች በቀጥታ በTelegram DM የትምህርት ማስታወሻ ወይም የቀሩበትን ማሳሰቢያ ይላኩ።
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                {[
+                  { id: "all", label: "📢 ለሁሉም ተመዝጋቢዎች" },
+                  { id: "absent_today", label: "❌ ዛሬ ላልተመዘገቡ" },
+                  { id: "high_absent", label: "⚠️ 2+ ቀን ለቀሩ" },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() =>
+                      setNotifyAudience(
+                        opt.id as "all" | "absent_today" | "high_absent"
+                      )
+                    }
+                    className={`py-2 px-2.5 rounded-xl text-[11px] font-bold border transition ${
+                      notifyAudience === opt.id
+                        ? "bg-indigo-700 text-white border-indigo-700"
+                        : "bg-white text-indigo-900 border-indigo-200 hover:bg-indigo-100/60"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                rows={2}
+                value={notifyCustomMessage}
+                onChange={(e) => setNotifyCustomMessage(e.target.value)}
+                placeholder="የራስዎን መልእክት መጻፍ ይችላሉ (ባዶ ከተዉት በራሱ የተዘጋጀውን መልእክት ይልካል)..."
+                className="w-full px-3 py-2 text-xs border border-indigo-200 rounded-xl bg-white"
+              />
+
+              {notifyResult && (
+                <div className="bg-white border border-indigo-200 text-indigo-950 px-3 py-2 rounded-xl text-xs font-bold">
+                  {notifyResult}
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={sendingNotify || roster.length === 0}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-700 text-white text-xs font-bold hover:bg-indigo-800 disabled:opacity-50"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {sendingNotify ? "በመላክ ላይ..." : "አሁን ላክ (Send DM)"}
+                </button>
+              </div>
+            </form>
           )}
 
           {/* Attendance Date Selector (Today or Past Dates) */}
@@ -1054,28 +1178,47 @@ export default function AdminCoursesView({
 
           {/* Roster Table */}
           <div className="space-y-2">
-            <p className="text-xs font-bold text-slate-700">
-              የተመዘገቡ ተማሪዎች ({roster.length}) — ለ{activeDateEth.formatted}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-bold text-slate-700">
+                የተመዘገቡ ተማሪዎች ({roster.length}) — ለ{activeDateEth.formatted}
+              </p>
+              <div className="inline-flex items-center gap-1.5">
+                <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
+                <select
+                  value={sortBy}
+                  onChange={(e) =>
+                    setSortBy(e.target.value as CourseSortOption)
+                  }
+                  className="text-[11px] font-bold px-2.5 py-1 border border-slate-300 rounded-lg bg-white text-slate-700"
+                >
+                  <option value="name">በስም (A–Z)</option>
+                  <option value="most_absent">🚨 ብዙ የቀሩ ከላይ</option>
+                  <option value="most_late">⏰ ብዙ ያረፈዱ ከላይ</option>
+                  <option value="highest_pct">✅ ከፍተኛ ክትትል %</option>
+                </select>
+              </div>
+            </div>
+
             {roster.length === 0 ? (
               <p className="text-xs text-slate-500 py-4 text-center">
                 ገና የተመዘገበ ተማሪ የለም።
               </p>
             ) : (
-              roster.map((r, idx) => {
-                const present = Number(r.present_count || 0);
-                const late = Number(r.late_count || 0);
-                const attended = present + late;
-                const absent = Math.max(0, heldDaysCount - attended);
-                const pct =
-                  heldDaysCount > 0
-                    ? Math.round((attended / heldDaysCount) * 100)
-                    : 100;
+              sortCourseRoster(roster, heldDaysCount, sortBy).map((r, idx) => {
+                const { present, late, absent, pct } = computeAttendanceMetrics(
+                  r,
+                  heldDaysCount
+                );
+                const needsAttention = absent >= 2 || (heldDaysCount >= 3 && pct < 75);
 
                 return (
                   <div
                     key={r.enrollment_id}
-                    className="border border-slate-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 bg-slate-50/50"
+                    className={`border rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 ${
+                      needsAttention
+                        ? "border-red-300 bg-red-50/40"
+                        : "border-slate-200 bg-slate-50/50"
+                    }`}
                   >
                     <div>
                       <p className="text-xs font-bold text-gibi-navy">
